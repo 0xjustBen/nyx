@@ -127,6 +127,33 @@ QByteArray XmppRewriter::rewriteSingleStanza(const QByteArray &chunk)
 {
     if (!chunk.contains("<presence")) return chunk;
 
+    // INVISIBLE / OFFLINE: drop outbound broadcast <presence> entirely.
+    // Server never sees a fresh presence so it doesn't broadcast to our
+    // roster. Friends keep seeing the last-known state (typically offline
+    // for a session that started in invisible). Crucially the Riot Client
+    // still believes IT is online (no server-side echo with show=offline)
+    // so the local chat UI stays fully functional — user can send/receive
+    // DMs while appearing offline to everyone else.
+    if (m_mode == Mode::Offline) {
+        // Strip every top-level <presence ...> ... </presence> (or self-closed).
+        QByteArray out;
+        int i = 0;
+        while (i < chunk.size()) {
+            int p = chunk.indexOf("<presence", i);
+            if (p < 0) { out.append(chunk.mid(i)); break; }
+            out.append(chunk.mid(i, p - i));
+            // Find matching close.
+            int gt = chunk.indexOf('>', p);
+            if (gt < 0) break;
+            bool selfClosed = (gt > 0 && chunk[gt - 1] == '/');
+            if (selfClosed) { i = gt + 1; continue; }
+            int close = chunk.indexOf("</presence>", gt);
+            if (close < 0) break;
+            i = close + (int)strlen("</presence>");
+        }
+        return out;
+    }
+
     // Wrap in synthetic root so QDomDocument can parse a stanza-fragment chunk
     // that may contain multiple top-level <presence> stanzas.
     QByteArray wrapped = "<xml>" + chunk + "</xml>";

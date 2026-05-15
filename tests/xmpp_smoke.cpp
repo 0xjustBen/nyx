@@ -73,11 +73,13 @@ int main(int argc, char *argv[])
         CHECK(!out.contains("<bacon>"),              "mobile: other-game stripped");
     }
 
-    // Offline: show=offline, lol removed.
+    // Offline (invisible): outbound presence dropped entirely so server
+    // never broadcasts a fresh state. Friends see last-known (typically
+    // offline) and the client itself stays online.
     {
         QByteArray out = run(Mode::Offline, kPresence);
-        CHECK(out.contains("<show>offline</show>"),  "offline: show");
-        CHECK(!out.contains("<league_of_legends>"),  "offline: lol removed");
+        CHECK(out.trimmed().isEmpty() || !out.contains("<presence"),
+              "offline: outbound presence dropped");
     }
 
     // Dnd: show=dnd, lol removed.

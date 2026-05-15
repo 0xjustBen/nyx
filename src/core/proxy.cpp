@@ -247,7 +247,15 @@ void ProxyService::resendPresence()
         emit log("presence: no active client connection");
         return;
     }
-    QString show = modeToString(modeFromString(d->mode));
+    Mode m = modeFromString(d->mode);
+    if (m == Mode::Offline) {
+        // Invisible: don't broadcast any presence. Server keeps last-known
+        // state (or no state) so friends see offline; local client still
+        // believes it's online.
+        emit log("presence: invisible — no broadcast (chat stays usable)");
+        return;
+    }
+    QString show = modeToString(m);
     QByteArray fromAttr = d->userJid.isEmpty() ? QByteArray()
                          : (" from='" + d->userJid.toUtf8() + "'");
     QByteArray stanza = "<presence" + fromAttr + ">"
