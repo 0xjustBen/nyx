@@ -62,12 +62,13 @@ if(NYX_BUILD_APP)
         QML_FILES
             qml/Main.qml
             qml/Theme.qml
-            qml/screens/StatusScreen.qml
+            qml/screens/MainScreen.qml
             qml/screens/SettingsScreen.qml
-            qml/screens/RosterScreen.qml
+            qml/screens/ActivityScreen.qml
+            qml/screens/UninstallScreen.qml
             qml/components/ModePill.qml
             qml/components/FriendRow.qml
-            qml/components/TitleBar.qml
+            qml/components/NeonBtn.qml
         RESOURCES
             resources/icons/tray.svg
     )

@@ -6,88 +6,122 @@ import Nyx
 ItemDelegate {
     id: row
     property string friendName
-    property string friendPresence
-    property string friendGame
+    property string friendTag: ""
+    property string friendActivity: ""
+    property string friendGame: ""
+    property string friendPresence: "offline"
 
-    height: 64
+    height: 58
+
+    readonly property color presence: Theme.presenceColor(friendPresence)
+    readonly property color gameColor:
+          friendGame === "LOL"  ? Theme.gameLol
+        : friendGame === "VAL"  ? Theme.gameVal
+        : friendGame === "LOR"  ? Theme.gameLor
+        : friendGame === "2XKO" ? Theme.game2xko
+                                : Theme.muted
 
     background: Rectangle {
-        color: row.hovered ? Qt.rgba(1,1,1,0.03) : "transparent"
-        radius: Theme.radiusSm
-        Behavior on color { ColorAnimation { duration: Theme.durFast } }
+        color: row.hovered ? Theme.surface : "transparent"
+        Rectangle {
+            anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+            width: 2
+            color: row.hovered ? Theme.line2 : "transparent"
+        }
     }
 
     contentItem: RowLayout {
-        spacing: Theme.gap
+        spacing: 12
         anchors.fill: parent
-        anchors.leftMargin: Theme.padding
-        anchors.rightMargin: Theme.padding
+        anchors.leftMargin: 20
+        anchors.rightMargin: 20
 
-        // Avatar with presence ring.
+        // Avatar with presence dot.
         Item {
-            Layout.preferredWidth: 40
-            Layout.preferredHeight: 40
+            Layout.preferredWidth: 36
+            Layout.preferredHeight: 36
             Rectangle {
                 anchors.fill: parent
                 radius: width / 2
+                color: "transparent"
+                border.color: Theme.line
+                border.width: 1
                 gradient: Gradient {
                     orientation: Gradient.Vertical
-                    GradientStop { position: 0.0; color: Theme.accent }
-                    GradientStop { position: 1.0; color: Theme.accentDim }
+                    GradientStop { position: 0.0; color: Theme.surface2 }
+                    GradientStop { position: 1.0; color: Theme.line2 }
                 }
                 Label {
                     anchors.centerIn: parent
-                    text: row.friendName.length ? row.friendName.charAt(0).toUpperCase() : "?"
-                    color: Theme.text
+                    text: row.friendName.length >= 2
+                          ? (row.friendName.charAt(0) + row.friendName.charAt(1)).toUpperCase()
+                          : (row.friendName.charAt(0) || "?").toUpperCase()
+                    color: Theme.muted2
                     font.family: Theme.fontDisplay
-                    font.bold: true
                     font.pixelSize: Theme.fontMd
+                    font.weight: Font.DemiBold
                 }
             }
             Rectangle {
-                width: 12; height: 12; radius: 6
+                width: 11; height: 11; radius: 5.5
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
-                border.color: Theme.surface
+                anchors.rightMargin: -2
+                anchors.bottomMargin: -2
+                color: row.presence
+                border.color: Theme.bg
                 border.width: 2
-                color: Theme.presenceColor(row.friendPresence)
             }
         }
 
         ColumnLayout {
-            spacing: 2
             Layout.fillWidth: true
-            Label {
-                text: row.friendName
-                color: Theme.text
-                font.family: Theme.fontDisplay
-                font.pixelSize: Theme.fontMd
-                font.weight: Font.Medium
-                elide: Text.ElideRight
-                Layout.fillWidth: true
-            }
+            spacing: 2
             RowLayout {
                 spacing: 6
                 Label {
-                    text: row.friendPresence || "offline"
-                    color: Theme.presenceColor(row.friendPresence)
+                    text: row.friendName
+                    color: Theme.fg
                     font.family: Theme.fontMono
-                    font.pixelSize: Theme.fontXs
-                }
-                Label {
-                    visible: row.friendGame.length > 0
-                    text: "·"
-                    color: Theme.textMute
-                    font.pixelSize: Theme.fontXs
-                }
-                Label {
-                    visible: row.friendGame.length > 0
-                    text: row.friendGame
-                    color: Theme.textDim
-                    font.pixelSize: Theme.fontXs
+                    font.pixelSize: Theme.fontBase
+                    font.weight: Font.Medium
                     elide: Text.ElideRight
                     Layout.fillWidth: true
                 }
+                Label {
+                    text: row.friendTag
+                    color: Theme.muted
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontSm
+                }
+            }
+            Label {
+                text: row.friendActivity
+                color: Theme.muted
+                font.family: Theme.fontMono
+                font.pixelSize: Theme.fontXs
+                elide: Text.ElideRight
+                Layout.fillWidth: true
+            }
+        }
+
+        Rectangle {
+            visible: row.friendGame.length > 0
+            color: "transparent"
+            border.color: row.gameColor
+            border.width: 1
+            radius: 3
+            implicitWidth: gameLbl.implicitWidth + 12
+            implicitHeight: 18
+            Label {
+                id: gameLbl
+                anchors.centerIn: parent
+                text: row.friendGame
+                color: row.gameColor
+                font.family: Theme.fontDisplay
+                font.pixelSize: 9
+                font.weight: Font.DemiBold
+                font.letterSpacing: 2
             }
         }
     }
