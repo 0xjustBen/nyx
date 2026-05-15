@@ -336,10 +336,12 @@ Rectangle {
                     model: App.roster.rowCount() > 0 ? App.roster : demoRosterModel
                     delegate: FriendRow {
                         width: ListView.view.width
-                        friendName: model.name
-                        friendTag: model.tag || ""
-                        friendActivity: model.activity || model.game || (model.presence || "")
-                        friendGame: model.game || ""
+                        friendName: model.name || ""
+                        friendTag: (typeof model.tag !== "undefined" ? model.tag : "")
+                        friendActivity: (typeof model.activity !== "undefined" && model.activity.length > 0)
+                                      ? model.activity
+                                      : (model.presence || "")
+                        friendGame: (typeof model.game !== "undefined" ? model.game : "")
                         friendPresence: model.presence || "offline"
                     }
                 }

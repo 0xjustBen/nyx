@@ -125,4 +125,86 @@ QByteArray XmppRewriter::rewriteC2S(const QByteArray &chunk)
     return out;
 }
 
+// Parse S2C bytes for roster + presence events. Best-effort — wraps and
+// scans, doesn't fail on partial chunks.
+void XmppRewriter::observeS2C(const QByteArray &chunk)
+{
+    if (!chunk.contains("<presence") && !chunk.contains("<item")) return;
+
+    QByteArray wrapped = "<xml>" + chunk + "</xml>";
+    QDomDocument doc;
+    if (!doc.setContent(wrapped, /*namespaceProcessing*/ false)) return;
+    QDomElement root = doc.documentElement();
+    if (root.isNull()) return;
+
+    auto deriveGame = [](const QDomElement &games) -> QString {
+        if (games.isNull()) return {};
+        if (!games.firstChildElement("league_of_legends").isNull()) return "LOL";
+        if (!games.firstChildElement("valorant").isNull())           return "VAL";
+        if (!games.firstChildElement("bacon").isNull())              return "LOR";
+        if (!games.firstChildElement("lion").isNull())               return "2XKO";
+        return {};
+    };
+    auto splitJid = [](const QString &full) {
+        // bare@host/resource → bare and tag
+        int slash = full.indexOf('/');
+        QString bare = slash < 0 ? full : full.left(slash);
+        return bare;
+    };
+
+    // Roster IQ items.
+    QDomNodeList items = root.elementsByTagName("item");
+    for (int i = 0; i < items.size(); ++i) {
+        QDomElement it = items.at(i).toElement();
+        if (it.isNull()) continue;
+        // Riot's roster items have name + puuid attributes.
+        QString jid  = it.attribute("jid");
+        QString name = it.attribute("name");
+        if (jid.isEmpty()) continue;
+
+        Friend f;
+        f.jid = splitJid(jid);
+        f.name = name.isEmpty() ? f.jid.section('@', 0, 0) : name;
+        // Tag = guess from JID host (e.g. eu1.pvp.net → EU1)
+        QString host = f.jid.section('@', 1).section('.', 0, 0).toUpper();
+        if (!host.isEmpty()) f.tag = "#" + host;
+        f.presence = "offline";
+        m_pending.push_back({Event::RosterItem, f});
+    }
+
+    // Presence updates.
+    QDomElement el = root.firstChildElement();
+    while (!el.isNull()) {
+        if (el.tagName() == "presence") {
+            QString from = el.attribute("from");
+            if (!from.isEmpty()) {
+                Friend f;
+                f.jid = from.section('/', 0, 0);
+                QDomElement show = el.firstChildElement("show");
+                QDomElement games = el.firstChildElement("games");
+                QDomElement status = el.firstChildElement("status");
+                QString type = el.attribute("type");
+                if (type == "unavailable") {
+                    f.presence = "offline";
+                } else if (!show.isNull()) {
+                    f.presence = show.text();
+                } else {
+                    f.presence = "chat";
+                }
+                f.game = deriveGame(games);
+                if (!status.isNull()) f.activity = status.text();
+                m_pending.push_back({Event::PresenceUpdate, f});
+            }
+        }
+        el = el.nextSiblingElement();
+    }
+}
+
+std::vector<XmppRewriter::Event> XmppRewriter::drainEvents()
+{
+    std::vector<Event> out;
+    out.swap(m_pending);
+    return out;
+}
+
 } // namespace nyx

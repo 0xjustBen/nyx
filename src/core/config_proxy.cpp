@@ -9,7 +9,6 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QPointer>
-#include <QPointer>
 #include <QTimer>
 
 namespace nyx {
@@ -61,10 +60,30 @@ QByteArray header(const HttpReq &r, const QByteArray &name)
     return {};
 }
 
+const char *reasonPhrase(int status)
+{
+    switch (status) {
+        case 200: return "OK";
+        case 201: return "Created";
+        case 204: return "No Content";
+        case 301: return "Moved Permanently";
+        case 302: return "Found";
+        case 304: return "Not Modified";
+        case 400: return "Bad Request";
+        case 401: return "Unauthorized";
+        case 403: return "Forbidden";
+        case 404: return "Not Found";
+        case 500: return "Internal Server Error";
+        case 502: return "Bad Gateway";
+        case 503: return "Service Unavailable";
+        default:  return "OK";
+    }
+}
+
 QByteArray buildResponse(int status, const QByteArray &body)
 {
     QByteArray r;
-    r += "HTTP/1.1 " + QByteArray::number(status) + " OK\r\n";
+    r += "HTTP/1.1 " + QByteArray::number(status) + " " + reasonPhrase(status) + "\r\n";
     r += "Content-Type: application/json\r\n";
     r += "Content-Length: " + QByteArray::number(body.size()) + "\r\n";
     r += "Connection: close\r\n\r\n";
@@ -97,10 +116,26 @@ bool ConfigProxy::start(const QString &localhostDomain, uint16_t chatProxyPort)
     connect(d->server, &QTcpServer::newConnection, this, [this] {
         while (QTcpSocket *sock = d->server->nextPendingConnection()) {
             auto *buf = new QByteArray();
-            connect(sock, &QTcpSocket::readyRead, this, [this, sock, buf] {
+            auto *inflight = new bool(false);
+
+            auto cleanup = [buf, inflight, sock] {
+                delete buf;
+                delete inflight;
+                sock->deleteLater();
+            };
+            connect(sock, &QTcpSocket::disconnected, this, cleanup);
+
+            connect(sock, &QTcpSocket::readyRead, this, [this, sock, buf, inflight] {
+                if (*inflight) {
+                    // Already proxying an upstream request on this connection;
+                    // ignore further pipelined bytes until reply arrives.
+                    buf->append(sock->readAll());
+                    return;
+                }
                 buf->append(sock->readAll());
                 HttpReq req;
                 if (!parseRequest(*buf, req)) return;
+                *inflight = true;
 
                 QUrl url(QString::fromLatin1(kConfigUrl) + QString::fromLatin1(req.path));
                 QNetworkRequest qreq(url);
@@ -111,9 +146,10 @@ bool ConfigProxy::start(const QString &localhostDomain, uint16_t chatProxyPort)
                 auto authz = header(req, "Authorization");
                 if (!authz.isEmpty()) qreq.setRawHeader("Authorization", authz);
 
+                QPointer<QTcpSocket> sockGuard(sock);
                 QNetworkReply *reply = d->http->get(qreq);
                 connect(reply, &QNetworkReply::finished, this,
-                        [this, sock, buf, reply] {
+                        [this, sockGuard, buf, inflight, reply] {
                     QByteArray body = reply->readAll();
                     int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
                     if (status == 0) status = 502;
@@ -148,13 +184,15 @@ bool ConfigProxy::start(const QString &localhostDomain, uint16_t chatProxyPort)
                             }
                         }
                     }
-                    sock->write(buildResponse(status, body));
-                    sock->disconnectFromHost();
+                    if (sockGuard && sockGuard->state() == QAbstractSocket::ConnectedState) {
+                        sockGuard->write(buildResponse(status, body));
+                        sockGuard->disconnectFromHost();
+                    }
+                    buf->clear();
+                    *inflight = false;
                     reply->deleteLater();
-                    delete buf;
                 });
             });
-            connect(sock, &QTcpSocket::disconnected, sock, &QObject::deleteLater);
         }
     });
 

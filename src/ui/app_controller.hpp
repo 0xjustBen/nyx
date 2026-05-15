@@ -32,9 +32,10 @@ public:
     bool connected() const;
     RosterModel *roster() const;
 
-    Q_INVOKABLE void installCert();
-    Q_INVOKABLE void uninstallCert();
+    Q_INVOKABLE bool installCert();
+    Q_INVOKABLE bool uninstallCert();
     Q_INVOKABLE void launchRiot();
+    Q_INVOKABLE void killRiotClients();
     Q_INVOKABLE void quit();
 
 signals:

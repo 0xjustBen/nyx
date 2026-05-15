@@ -8,8 +8,10 @@ namespace nyx {
 struct Friend {
     QString jid;
     QString name;
+    QString tag;
     QString presence;
     QString game;
+    QString activity;
 };
 
 class RosterModel : public QAbstractListModel {
@@ -18,8 +20,10 @@ public:
     enum Roles {
         JidRole = Qt::UserRole + 1,
         NameRole,
+        TagRole,
         PresenceRole,
         GameRole,
+        ActivityRole,
     };
 
     explicit RosterModel(QObject *parent = nullptr);
@@ -29,6 +33,8 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     void upsert(const Friend &f);
+    void updatePresence(const QString &jid, const QString &presence,
+                        const QString &game, const QString &activity);
     void remove(const QString &jid);
     void clear();
 

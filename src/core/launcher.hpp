@@ -14,6 +14,10 @@ public:
     // Locate the RiotClientServices executable for current OS.
     static QString riotClientPath();
 
+    // Force-quit any running Riot Client / game / launcher processes so our
+    // --client-config-url arg takes effect on next launch.
+    static bool killExistingRiotClients();
+
     // Launch RiotClientServices with --client-config-url and optional product flags.
     // Returns true if Process::startDetached succeeded.
     bool launch(uint16_t configProxyPort,

@@ -5,6 +5,7 @@
 #include <QStandardPaths>
 #include <QFile>
 #include <QDir>
+#include <QThread>
 
 namespace nyx {
 
@@ -40,6 +41,35 @@ QString Launcher::riotClientPath()
     return {};
 }
 
+static void killProc(const QString &name)
+{
+#if defined(_WIN32)
+    QProcess::execute("taskkill", {"/F", "/T", "/IM", name});
+#else
+    QProcess::execute("pkill", {"-f", name});
+#endif
+}
+
+bool Launcher::killExistingRiotClients()
+{
+    static const QStringList names = {
+        "RiotClientServices.exe",
+        "RiotClientUx.exe",
+        "RiotClientUxRender.exe",
+        "RiotClientCrashHandler.exe",
+        "LeagueClient.exe",
+        "LeagueClientUx.exe",
+        "LeagueClientUxRender.exe",
+        "VALORANT.exe",
+        "VALORANT-Win64-Shipping.exe",
+        "RiotGames.exe",
+    };
+    for (const QString &n : names) killProc(n);
+    // Give the OS a moment to release the lock files Riot Client holds.
+    QThread::msleep(800);
+    return true;
+}
+
 bool Launcher::launch(uint16_t configProxyPort, const QString &launchProduct, const QString &patchline)
 {
     QString path = riotClientPath();
@@ -47,6 +77,12 @@ bool Launcher::launch(uint16_t configProxyPort, const QString &launchProduct, co
         emit log("launcher: RiotClientServices not found");
         return false;
     }
+
+    // CRITICAL: Riot Client is a singleton. If one is already running, our
+    // --client-config-url arg is silently ignored and the existing instance
+    // keeps talking to the real chat server. Kill anything Riot first.
+    emit log("launcher: killing existing Riot Client processes");
+    killExistingRiotClients();
 
     QStringList args = {
         QString("--client-config-url=http://127.0.0.1:%1").arg(configProxyPort),

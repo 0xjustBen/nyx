@@ -17,8 +17,10 @@ QVariant RosterModel::data(const QModelIndex &index, int role) const
     switch (role) {
         case JidRole:      return f.jid;
         case NameRole:     return f.name;
+        case TagRole:      return f.tag;
         case PresenceRole: return f.presence;
         case GameRole:     return f.game;
+        case ActivityRole: return f.activity;
     }
     return {};
 }
@@ -26,11 +28,38 @@ QVariant RosterModel::data(const QModelIndex &index, int role) const
 QHash<int, QByteArray> RosterModel::roleNames() const
 {
     return {
-        {JidRole, "jid"},
-        {NameRole, "name"},
+        {JidRole,      "jid"},
+        {NameRole,     "name"},
+        {TagRole,      "tag"},
         {PresenceRole, "presence"},
-        {GameRole, "game"},
+        {GameRole,     "game"},
+        {ActivityRole, "activity"},
     };
+}
+
+void RosterModel::updatePresence(const QString &jid, const QString &presence,
+                                 const QString &game, const QString &activity)
+{
+    for (size_t i = 0; i < m_items.size(); ++i) {
+        if (m_items[i].jid == jid) {
+            m_items[i].presence = presence;
+            if (!game.isEmpty())     m_items[i].game = game;
+            if (!activity.isEmpty()) m_items[i].activity = activity;
+            auto ix = index((int)i);
+            emit dataChanged(ix, ix);
+            return;
+        }
+    }
+    // Presence for unknown JID: create a stub entry.
+    Friend f;
+    f.jid = jid;
+    f.name = jid.section('@', 0, 0);
+    f.presence = presence;
+    f.game = game;
+    f.activity = activity;
+    beginInsertRows({}, (int)m_items.size(), (int)m_items.size());
+    m_items.push_back(f);
+    endInsertRows();
 }
 
 void RosterModel::upsert(const Friend &f)

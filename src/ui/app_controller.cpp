@@ -10,6 +10,7 @@
 #include <QCoreApplication>
 #include <QStandardPaths>
 #include <QDir>
+#include <QFile>
 
 namespace nyx {
 
@@ -46,6 +47,18 @@ AppController::AppController(QObject *parent)
             this, [this]{ d->connected = true;  emit connectedChanged(); });
     connect(d->proxy.get(), &ProxyService::clientDisconnected,
             this, [this]{ d->connected = false; emit connectedChanged(); });
+
+    // Roster wiring: XMPP S2C parsed events feed RosterModel.
+    connect(d->proxy.get(), &ProxyService::rosterItem, this,
+            [this](const QString &jid, const QString &name, const QString &tag) {
+        Friend f{ jid, name, tag, "offline", "" };
+        d->roster->upsert(f);
+    });
+    connect(d->proxy.get(), &ProxyService::presenceUpdate, this,
+            [this](const QString &jid, const QString &presence,
+                   const QString &game, const QString &activity) {
+        d->roster->updatePresence(jid, presence, game, activity);
+    });
 
     // When ConfigProxy learns the real chat host from clientconfig response,
     // start the TLS chat proxy targeting it.
@@ -91,8 +104,21 @@ void AppController::setMode(const QString &m)
     emit modeChanged();
 }
 
-void AppController::installCert()   { Cert::installTrust(); }
-void AppController::uninstallCert() { Cert::uninstallTrust(); }
+bool AppController::installCert()
+{
+    bool ok = Cert::installTrust();
+    emit logLine(ok ? "cert: installed into user trust store"
+                    : "cert: install FAILED — try Run as Administrator");
+    return ok;
+}
+
+bool AppController::uninstallCert()
+{
+    bool ok = Cert::uninstallTrust();
+    emit logLine(ok ? "cert: removed from user trust store"
+                    : "cert: uninstall failed (not present?)");
+    return ok;
+}
 
 void AppController::launchRiot()
 {
@@ -100,7 +126,20 @@ void AppController::launchRiot()
         emit logLine("launch: configproxy not running");
         return;
     }
+    // Ensure cert is in place before we tell Riot to talk to our localhost
+    // domain — otherwise its TLS handshake will fail.
+    QString caPath = certDir() + "/ca.pem";
+    if (!QFile::exists(caPath)) {
+        emit logLine("launch: cert not generated yet — generating & installing");
+        Cert::installTrust();
+    }
     d->launcher->launch(d->configProxy->port());
+}
+
+void AppController::killRiotClients()
+{
+    Launcher::killExistingRiotClients();
+    emit logLine("riot client processes killed");
 }
 
 void AppController::quit() { QCoreApplication::quit(); }

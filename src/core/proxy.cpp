@@ -92,13 +92,33 @@ bool ProxyService::start(const QString &certDir, uint16_t listenPort,
             emit log(QString("client: incoming %1").arg(sock->peerAddress().toString()));
             emit clientConnected();
 
+            auto teardown = [this, c] {
+                if (!c) return;
+                // Idempotent — second call from upstream-disconnected is a no-op.
+                if (c->client) {
+                    d->byClient.remove(c->client);
+                    c->client->disconnect();
+                    c->client->deleteLater();
+                    c->client = nullptr;
+                }
+                if (c->upstream) {
+                    d->byUpstream.remove(c->upstream);
+                    c->upstream->disconnect();
+                    c->upstream->deleteLater();
+                    c->upstream = nullptr;
+                }
+                delete c;
+            };
+
             connect(sock, &QSslSocket::encrypted, this, [this, c] {
+                if (!c->client) return;
                 emit log("client: TLS up — dialing upstream " + d->upstreamHost);
                 c->upstream = new QSslSocket(this);
                 d->byUpstream.insert(c->upstream, c);
                 c->upstream->setProtocol(QSsl::TlsV1_2OrLater);
                 c->upstream->setPeerVerifyMode(QSslSocket::VerifyNone); // TODO: pin Riot's CA
                 connect(c->upstream, &QSslSocket::encrypted, this, [this, c] {
+                    if (!c->upstream) return;
                     c->upstreamReady = true;
                     emit log("upstream: TLS up");
                     if (!c->pending.isEmpty()) {
@@ -108,27 +128,39 @@ bool ProxyService::start(const QString &certDir, uint16_t listenPort,
                     }
                 });
                 connect(c->upstream, &QSslSocket::readyRead, this, [this, c] {
+                    if (!c->upstream) return;
                     QByteArray b = c->upstream->readAll();
                     d->s2cBytes += b.size();
                     if (c->client && c->client->state() == QAbstractSocket::ConnectedState)
                         c->client->write(b);
+                    // Observe roster + presence for UI without altering forwarded bytes.
+                    d->rewriter.observeS2C(b);
+                    for (auto &ev : d->rewriter.drainEvents()) {
+                        if (ev.kind == XmppRewriter::Event::RosterItem)
+                            emit rosterItem(ev.f.jid, ev.f.name, ev.f.tag);
+                        else if (ev.kind == XmppRewriter::Event::PresenceUpdate)
+                            emit presenceUpdate(ev.f.jid, ev.f.presence, ev.f.game, ev.f.activity);
+                    }
                     emit bytesPumped(d->c2sBytes, d->s2cBytes);
                 });
                 connect(c->upstream, &QSslSocket::disconnected, this, [this, c] {
                     emit log("upstream: disconnected");
-                    if (c->client) c->client->disconnectFromHost();
+                    if (c->client && c->client->state() == QAbstractSocket::ConnectedState)
+                        c->client->disconnectFromHost();
                 });
                 connect(c->upstream, QOverload<const QList<QSslError> &>::of(&QSslSocket::sslErrors),
                         this, [this, c](const QList<QSslError> &errs) {
+                    if (!c->upstream) return;
                     for (const auto &e : errs) emit log("upstream ssl: " + e.errorString());
                     c->upstream->ignoreSslErrors(); // dev only
                 });
                 c->upstream->connectToHostEncrypted(d->upstreamHost, d->upstreamPort);
             });
             connect(sock, &QSslSocket::readyRead, this, [this, c] {
+                if (!c->client) return;
                 QByteArray raw = c->client->readAll();
                 QByteArray b = d->rewriter.rewriteC2S(raw);
-                if (c->upstreamReady) {
+                if (c->upstreamReady && c->upstream) {
                     c->upstream->write(b);
                     d->c2sBytes += b.size();
                     emit bytesPumped(d->c2sBytes, d->s2cBytes);
@@ -136,19 +168,15 @@ bool ProxyService::start(const QString &certDir, uint16_t listenPort,
                     c->pending.append(b);
                 }
             });
-            connect(sock, &QSslSocket::disconnected, this, [this, c] {
+            connect(sock, &QSslSocket::disconnected, this, [this, c, teardown] {
                 emit log("client: disconnected");
                 emit clientDisconnected();
-                if (c->upstream) c->upstream->disconnectFromHost();
-                d->byClient.remove(c->client);
-                if (c->upstream) d->byUpstream.remove(c->upstream);
-                c->client->deleteLater();
-                if (c->upstream) c->upstream->deleteLater();
-                delete c;
+                teardown();
             });
             connect(sock, QOverload<const QList<QSslError> &>::of(&QSslSocket::sslErrors),
-                    this, [this](const QList<QSslError> &errs) {
+                    this, [this, c](const QList<QSslError> &errs) {
                 for (const auto &e : errs) emit log("client ssl: " + e.errorString());
+                if (c->client) c->client->ignoreSslErrors();
             });
         }
     });

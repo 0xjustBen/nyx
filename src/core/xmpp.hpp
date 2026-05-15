@@ -1,6 +1,7 @@
 #pragma once
 #include <QByteArray>
 #include <QString>
+#include <vector>
 
 namespace nyx {
 
@@ -37,9 +38,31 @@ public:
     // Apply transform for client->server traffic. Returns possibly-modified bytes.
     QByteArray rewriteC2S(const QByteArray &chunk);
 
+    // Server-to-client chunks are forwarded verbatim, but we parse them in
+    // place to populate the friend roster + presence cache. The parsed data
+    // is exposed via observeS2C and returned to the caller unchanged.
+    struct Friend {
+        QString jid;
+        QString name;
+        QString tag;
+        QString presence;   // chat | away | dnd | mobile | unavailable
+        QString game;       // LOL | VAL | LOR | 2XKO | ""
+        QString activity;   // free-form status
+    };
+    void observeS2C(const QByteArray &chunk);
+
+    // Pull pending roster events accumulated since last drain.
+    struct Event {
+        enum Kind { RosterItem, PresenceUpdate, Remove };
+        Kind kind;
+        Friend f;
+    };
+    std::vector<Event> drainEvents();
+
 private:
     Mode m_mode = Mode::Online;
     bool m_muc = false;
+    std::vector<Event> m_pending;
 };
 
 } // namespace nyx

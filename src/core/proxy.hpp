@@ -25,6 +25,9 @@ signals:
     void clientConnected();
     void clientDisconnected();
     void bytesPumped(qint64 c2s, qint64 s2c);
+    void rosterItem(const QString &jid, const QString &name, const QString &tag);
+    void presenceUpdate(const QString &jid, const QString &presence,
+                        const QString &game, const QString &activity);
 
 private:
     struct Impl;
