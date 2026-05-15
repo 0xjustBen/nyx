@@ -14,9 +14,7 @@ endif()
 option(NYX_BUILD_APP "Build Qt GUI app" ON)
 option(NYX_BUILD_TESTS "Build smoke tests" OFF)
 
-if(NOT WIN32)
-    find_package(OpenSSL REQUIRED)
-endif()
+find_package(OpenSSL REQUIRED)
 
 if(NYX_BUILD_APP)
     find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network Widgets Xml)
@@ -79,10 +77,8 @@ if(NYX_BUILD_APP)
 
     target_link_libraries(nyx PRIVATE
         Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Network Qt6::Widgets Qt6::Xml
+        OpenSSL::SSL OpenSSL::Crypto
     )
-    if(NOT WIN32)
-        target_link_libraries(nyx PRIVATE OpenSSL::SSL OpenSSL::Crypto)
-    endif()
 
     if(APPLE)
         target_link_libraries(nyx PRIVATE "-framework Security" "-framework CoreFoundation")
@@ -138,7 +134,7 @@ if(NYX_BUILD_APP)
     )
 endif()
 
-if(NYX_BUILD_TESTS AND NOT WIN32)
+if(NYX_BUILD_TESTS)
     add_executable(nyx_cert_smoke
         tests/cert_smoke.cpp
         src/core/cert.cpp
