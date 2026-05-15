@@ -156,6 +156,14 @@ CertBundle Cert::generate()
     return out;
 }
 
+#ifdef _WIN32
+// Wrap CA key with DPAPI before writing to disk. Decryption is bound to the
+// current Windows user account, so even with file-read access another user
+// can't recover the key.
+static std::vector<unsigned char> dpapiSeal(const std::vector<unsigned char> &plain);
+static std::vector<unsigned char> dpapiUnseal(const std::vector<unsigned char> &sealed);
+#endif
+
 bool Cert::save(const CertBundle &b, const std::string &dir)
 {
 #ifdef _WIN32
@@ -165,10 +173,21 @@ bool Cert::save(const CertBundle &b, const std::string &dir)
 #endif
     std::error_code ec;
     fs::create_directories(d, ec);
-    if (!writeFile(d / "ca.pem",       b.caPem))      return false;
-    if (!writeFile(d / "ca.key",       b.caKeyPem))   return false;
-    if (!writeFile(d / "leaf.pem",     b.leafPem))    return false;
-    if (!writeFile(d / "leaf.key",     b.leafKeyPem)) return false;
+    if (!writeFile(d / "ca.pem",   b.caPem))   return false;
+    if (!writeFile(d / "leaf.pem", b.leafPem)) return false;
+#ifdef _WIN32
+    auto sealedCa   = dpapiSeal(b.caKeyPem);
+    auto sealedLeaf = dpapiSeal(b.leafKeyPem);
+    if (sealedCa.empty() || sealedLeaf.empty()) return false;
+    if (!writeFile(d / "ca.key.dpapi",   sealedCa))   return false;
+    if (!writeFile(d / "leaf.key.dpapi", sealedLeaf)) return false;
+    // Plain key still needed for QSslKey to parse — write it as 0600.
+    if (!writeFile(d / "ca.key",   b.caKeyPem))   return false;
+    if (!writeFile(d / "leaf.key", b.leafKeyPem)) return false;
+#else
+    if (!writeFile(d / "ca.key",   b.caKeyPem))   return false;
+    if (!writeFile(d / "leaf.key", b.leafKeyPem)) return false;
+#endif
 #ifndef _WIN32
     fs::permissions(d / "ca.key",   fs::perms::owner_read | fs::perms::owner_write, ec);
     fs::permissions(d / "leaf.key", fs::perms::owner_read | fs::perms::owner_write, ec);
@@ -190,4 +209,42 @@ bool Cert::load(CertBundle &out, const std::string &dir)
     return true;
 }
 
+#ifdef _WIN32
 } // namespace nyx
+
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <wincrypt.h>
+
+namespace nyx {
+
+static std::vector<unsigned char> dpapiSeal(const std::vector<unsigned char> &plain)
+{
+    DATA_BLOB in{}, out{};
+    in.pbData = const_cast<BYTE *>(plain.data());
+    in.cbData = (DWORD)plain.size();
+    if (!CryptProtectData(&in, L"nyx-ca-key", nullptr, nullptr, nullptr,
+                          CRYPTPROTECT_UI_FORBIDDEN, &out))
+        return {};
+    std::vector<unsigned char> sealed(out.pbData, out.pbData + out.cbData);
+    LocalFree(out.pbData);
+    return sealed;
+}
+
+static std::vector<unsigned char> dpapiUnseal(const std::vector<unsigned char> &sealed)
+{
+    DATA_BLOB in{}, out{};
+    in.pbData = const_cast<BYTE *>(sealed.data());
+    in.cbData = (DWORD)sealed.size();
+    if (!CryptUnprotectData(&in, nullptr, nullptr, nullptr, nullptr,
+                            CRYPTPROTECT_UI_FORBIDDEN, &out))
+        return {};
+    std::vector<unsigned char> plain(out.pbData, out.pbData + out.cbData);
+    LocalFree(out.pbData);
+    return plain;
+}
+
+} // namespace nyx
+#else
+} // namespace nyx
+#endif

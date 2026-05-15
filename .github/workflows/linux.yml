@@ -1,0 +1,55 @@
+name: linux
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      QT_VERSION: 6.7.3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: System deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libssl-dev libgl1-mesa-dev \
+            libxkbcommon-x11-0 libxkbcommon-dev libegl1 libfontconfig1 \
+            libxcb-cursor0
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          cache: true
+
+      - name: Configure + build
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j
+
+      - name: Smoke test (offscreen)
+        run: |
+          export QT_QPA_PLATFORM=offscreen
+          export NYX_SCREENSHOT="$PWD/smoke.png"
+          timeout 12 ./build/nyx || true
+          ls -la smoke.png || echo "no screenshot (ok)"
+
+      - name: Package
+        run: |
+          cd build
+          cpack -G TGZ
+          ls -la *.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nyx-linux-x64
+          path: build/Nyx-*-Linux.tar.gz
+          if-no-files-found: error

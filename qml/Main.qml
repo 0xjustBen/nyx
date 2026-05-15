@@ -17,7 +17,18 @@ ApplicationWindow {
 
     property string currentScreen: "main"  // main | settings | activity | uninstall
 
+    // Keyboard shortcuts for mode switching.
+    Shortcut { sequences: ["Ctrl+1", "Meta+1"]; onActivated: App.mode = "online" }
+    Shortcut { sequences: ["Ctrl+2", "Meta+2"]; onActivated: App.mode = "away" }
+    Shortcut { sequences: ["Ctrl+3", "Meta+3"]; onActivated: App.mode = "mobile" }
+    Shortcut { sequences: ["Ctrl+4", "Meta+4"]; onActivated: App.mode = "dnd" }
+    Shortcut { sequences: ["Ctrl+5", "Meta+5"]; onActivated: App.mode = "offline" }
+    Shortcut { sequences: ["Ctrl+L", "Meta+L"]; onActivated: root.currentScreen = "activity" }
+    Shortcut { sequences: ["Ctrl+,", "Meta+,"]; onActivated: root.currentScreen = "settings" }
+    Shortcut { sequences: ["Ctrl+Return", "Meta+Return"]; onActivated: App.launchRiot() }
+
     Platform.SystemTrayIcon {
+        id: tray
         visible: true
         icon.source: "qrc:/qt/qml/Nyx/resources/icons/tray.svg"
         tooltip: "Nyx · " + App.mode
@@ -29,7 +40,19 @@ ApplicationWindow {
             Platform.MenuItem { text: "DND";       onTriggered: App.mode = "dnd" }
             Platform.MenuItem { text: "Invisible"; onTriggered: App.mode = "offline" }
             Platform.MenuItem { separator: true }
+            Platform.MenuItem { text: App.connected ? "Pause Nyx" : "Resume Nyx"
+                                onTriggered: App.pause(App.connected) }
+            Platform.MenuItem { text: "Launch Riot"; onTriggered: App.launchRiot() }
+            Platform.MenuItem { separator: true }
             Platform.MenuItem { text: "Quit"; onTriggered: App.quit() }
+        }
+    }
+
+    Connections {
+        target: App
+        function onModeChanged() {
+            tray.showMessage("Nyx", "Friends now see you as " + App.mode,
+                             Platform.SystemTrayIcon.Information, 1500)
         }
     }
 

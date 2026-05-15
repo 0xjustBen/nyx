@@ -129,13 +129,60 @@ Rectangle {
                     }
                 }
 
-                // Setting rows.
+                // Region row (real, wired).
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 44
+                    Layout.rightMargin: 44
+                    Layout.preferredHeight: 70
+                    color: "transparent"
+                    Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: Theme.line }
+                    RowLayout {
+                        anchors.fill: parent
+                        spacing: 24
+                        ColumnLayout {
+                            Layout.preferredWidth: 280
+                            Label { text: "Region"; color: Theme.fg; font.family: Theme.fontDisplay; font.pixelSize: Theme.fontMd; font.weight: Font.DemiBold }
+                            Label { text: "Where Nyx connects to Riot Chat."; color: Theme.muted; font.family: Theme.fontMono; font.pixelSize: Theme.fontSm }
+                        }
+                        Item { Layout.fillWidth: true }
+                        ComboBox {
+                            model: ["na1","euw1","eun1","kr","br1","la1","la2","oc1","ru","tr1","jp1","ph2","sg2","th2","tw2","vn2"]
+                            currentIndex: Math.max(0, model.indexOf(App.region()))
+                            onActivated: App.setRegion(currentText)
+                        }
+                    }
+                }
+
+                // Autostart row (real, wired).
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 44
+                    Layout.rightMargin: 44
+                    Layout.preferredHeight: 70
+                    color: "transparent"
+                    Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: Theme.line }
+                    RowLayout {
+                        anchors.fill: parent
+                        spacing: 24
+                        ColumnLayout {
+                            Layout.preferredWidth: 280
+                            Label { text: "Start Nyx with system"; color: Theme.fg; font.family: Theme.fontDisplay; font.pixelSize: Theme.fontMd; font.weight: Font.DemiBold }
+                            Label { text: "Boot silently in the tray at login."; color: Theme.muted; font.family: Theme.fontMono; font.pixelSize: Theme.fontSm }
+                        }
+                        Item { Layout.fillWidth: true }
+                        Switch {
+                            checked: App.autostart()
+                            onToggled: App.setAutostart(checked)
+                        }
+                    }
+                }
+
+                // Static / dead toggle rows (cosmetic remnants).
                 Repeater {
                     model: [
-                        { nm: "Region",                            ds: "Where Nyx connects to Riot Chat. Auto-detects from your account.", ctl: "select", val: "EUW · Western Europe" },
-                        { nm: "Default startup mode",              ds: "Presence state to broadcast when Nyx launches.", ctl: "select", val: "Invisible" },
+                        { nm: "Default startup mode",              ds: "Presence state to broadcast when Nyx launches.", ctl: "select", val: App.mode },
                         { nm: "Default game on launch",            ds: "Which Riot title the Launch button opens.", ctl: "select", val: "League of Legends" },
-                        { nm: "Start Nyx with system",             ds: "Boot silently in the menu bar at login.", ctl: "toggle", on: true },
                         { nm: "Notify when friends come online",   ds: "Quiet notification — bypassed in DND mode.", ctl: "toggle", on: true },
                         { nm: "Notify on presence-spoof events",   ds: "Tell me whenever a friend's status mismatches Riot's reported value.", ctl: "toggle", on: false },
                         { nm: "Telemetry",                         ds: "Zero. Nyx is local-only by design. This switch does nothing — it's here to prove it.", ctl: "toggle-dead", on: false },

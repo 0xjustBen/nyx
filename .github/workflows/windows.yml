@@ -67,15 +67,28 @@ jobs:
           if (-not $proc.HasExited) { $proc.Kill(); Write-Error "timeout"; exit 1 }
           dir smoke.png
 
-      - name: Package
+      - name: Package portable zip
         run: |
           $stage = "nyx-windows-x64"
           New-Item -ItemType Directory -Path $stage | Out-Null
-          Copy-Item -Recurse -Path "build\*" -Destination $stage -Exclude "*.lib","*.pdb","*.exp","CMakeFiles","cmake_install.cmake","CMakeCache.txt","*.obj"
+          Copy-Item -Recurse -Path "build\*" -Destination $stage -Exclude "*.lib","*.pdb","*.exp","CMakeFiles","cmake_install.cmake","CMakeCache.txt","*.obj","_CPack_Packages","_deps"
           Compress-Archive -Path "$stage\*" -DestinationPath "nyx-windows-x64.zip"
+
+      - name: Build NSIS installer
+        run: |
+          cd build
+          cpack -G NSIS
+          dir *.exe
+        continue-on-error: true
 
       - uses: actions/upload-artifact@v4
         with:
-          name: nyx-windows-x64
+          name: nyx-windows-x64-portable
           path: nyx-windows-x64.zip
           if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nyx-windows-installer
+          path: build/Nyx-*-win64.exe
+          if-no-files-found: warn

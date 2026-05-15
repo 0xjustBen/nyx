@@ -35,8 +35,15 @@ public:
     Q_INVOKABLE bool installCert();
     Q_INVOKABLE bool uninstallCert();
     Q_INVOKABLE void launchRiot();
-    Q_INVOKABLE void launchProduct(const QString &product);  // league_of_legends|valorant|bacon|lion
+    Q_INVOKABLE void launchProduct(const QString &product);
     Q_INVOKABLE void killRiotClients();
+    Q_INVOKABLE void pause(bool on);
+    Q_INVOKABLE bool paused() const;
+    Q_INVOKABLE void setRegion(const QString &r);
+    Q_INVOKABLE QString region() const;
+    Q_INVOKABLE void setAutostart(bool on);
+    Q_INVOKABLE bool autostart() const;
+    Q_INVOKABLE void notifyMode();
     Q_INVOKABLE void quit();
 
 signals:

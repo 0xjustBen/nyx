@@ -79,6 +79,18 @@ Rectangle {
 
                             property color accent: Theme.modeColor(App.mode)
 
+                            // Ring-morph: pulse scale + opacity on mode change.
+                            Connections {
+                                target: App
+                                function onModeChanged() {
+                                    morphAnim.restart()
+                                }
+                            }
+                            SequentialAnimation {
+                                id: morphAnim
+                                NumberAnimation { target: ringWrap; property: "scale"; from: 0.92; to: 1.0; duration: Theme.durMed; easing.type: Easing.OutBack }
+                            }
+
                             // Outer ring.
                             Rectangle {
                                 anchors.fill: parent
@@ -334,7 +346,9 @@ Rectangle {
                     topMargin: 8
                     bottomMargin: 8
 
-                    model: App.roster.rowCount() > 0 ? App.roster : demoRosterModel
+                    // Show real roster if populated, else fall back to demo
+                    // entries so the empty UI doesn't look broken.
+                    model: App.roster && App.roster.rowCount() > 0 ? App.roster : demoRosterModel
                     delegate: FriendRow {
                         width: ListView.view.width
                         friendName: model.name || ""

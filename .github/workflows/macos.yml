@@ -1,0 +1,50 @@
+name: macos
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 30
+    env:
+      QT_VERSION: 6.7.3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Brew deps
+        run: brew install ninja openssl@3
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: mac
+          target: desktop
+          arch: clang_64
+          cache: true
+
+      - name: Configure + build
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$(brew --prefix openssl@3)"
+          cmake --build build -j
+
+      - name: Package DMG
+        run: |
+          cd build
+          cpack -G DragNDrop || true
+          ls -la *.dmg || true
+          cpack -G ZIP
+          ls -la *.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nyx-macos-arm64
+          path: |
+            build/*.dmg
+            build/*.zip
+          if-no-files-found: error

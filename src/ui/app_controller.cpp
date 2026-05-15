@@ -12,6 +12,7 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QFile>
+#include <QSettings>
 
 namespace nyx {
 
@@ -182,6 +183,111 @@ void AppController::killRiotClients()
 {
     Launcher::killExistingRiotClients();
     emit logLine("riot client processes killed");
+}
+
+void AppController::pause(bool on)
+{
+    if (on) {
+        if (d->proxy)       d->proxy->stop();
+        if (d->configProxy) d->configProxy->stop();
+        d->status = "paused";
+        emit logLine("nyx: paused");
+    } else {
+        start();
+        emit logLine("nyx: resumed");
+    }
+    emit statusChanged();
+}
+
+bool AppController::paused() const
+{
+    return d->status == "paused";
+}
+
+void AppController::setRegion(const QString &r)
+{
+    d->config.region = r.toStdString();
+    d->config.save();
+    emit logLine("region set: " + r);
+}
+
+QString AppController::region() const
+{
+    return QString::fromStdString(d->config.region);
+}
+
+void AppController::setAutostart(bool on)
+{
+    d->config.startMinimized = on; // reusing field
+    d->config.save();
+
+    // Platform autostart wiring.
+#if defined(_WIN32)
+    QSettings reg("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                  QSettings::NativeFormat);
+    QString exePath = QCoreApplication::applicationFilePath().replace('/', '\\');
+    if (on) reg.setValue("Nyx", "\"" + exePath + "\"");
+    else    reg.remove("Nyx");
+#elif defined(__APPLE__)
+    // macOS: write a LaunchAgent plist.
+    QString plistDir = QDir::homePath() + "/Library/LaunchAgents";
+    QDir().mkpath(plistDir);
+    QString plistPath = plistDir + "/io.nyx.app.plist";
+    if (on) {
+        QFile f(plistPath);
+        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            QString exe = QCoreApplication::applicationFilePath();
+            f.write(QString(
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" "
+                "\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">"
+                "<plist version=\"1.0\">"
+                "<dict>"
+                "<key>Label</key><string>io.nyx.app</string>"
+                "<key>ProgramArguments</key><array><string>%1</string></array>"
+                "<key>RunAtLoad</key><true/>"
+                "</dict></plist>").arg(exe).toUtf8());
+        }
+    } else {
+        QFile::remove(plistPath);
+    }
+#else
+    QString autostartDir = QDir::homePath() + "/.config/autostart";
+    QDir().mkpath(autostartDir);
+    QString desktopPath = autostartDir + "/nyx.desktop";
+    if (on) {
+        QFile f(desktopPath);
+        if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            QString exe = QCoreApplication::applicationFilePath();
+            f.write(QString(
+                "[Desktop Entry]\n"
+                "Type=Application\n"
+                "Name=Nyx\n"
+                "Exec=%1\n"
+                "X-GNOME-Autostart-enabled=true\n").arg(exe).toUtf8());
+        }
+    } else {
+        QFile::remove(desktopPath);
+    }
+#endif
+}
+
+bool AppController::autostart() const
+{
+#if defined(_WIN32)
+    QSettings reg("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                  QSettings::NativeFormat);
+    return reg.contains("Nyx");
+#elif defined(__APPLE__)
+    return QFile::exists(QDir::homePath() + "/Library/LaunchAgents/io.nyx.app.plist");
+#else
+    return QFile::exists(QDir::homePath() + "/.config/autostart/nyx.desktop");
+#endif
+}
+
+void AppController::notifyMode()
+{
+    emit logLine("mode notify: " + d->mode);
 }
 
 void AppController::quit() { QCoreApplication::quit(); }
