@@ -3,6 +3,8 @@
 #include <QQmlContext>
 #include <QQuickStyle>
 #include <QIcon>
+#include <QObject>
+#include <QDebug>
 
 #include "ui/app_controller.hpp"
 
@@ -17,6 +19,8 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle("Basic");
 
     nyx::AppController controller;
+    QObject::connect(&controller, &nyx::AppController::logLine,
+                     [](const QString &l){ qInfo().noquote() << "nyx:" << l; });
     controller.start();
 
     QQmlApplicationEngine engine;

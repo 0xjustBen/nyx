@@ -1,27 +1,30 @@
 #pragma once
+#include <QObject>
+#include <QString>
 #include <cstdint>
-#include <functional>
 #include <memory>
-#include <string>
 
 namespace nyx {
 
-class ProxyService {
+class ProxyService : public QObject {
+    Q_OBJECT
 public:
-    using StanzaCallback = std::function<void(const std::string &kind)>;
-    using ConnectedCallback = std::function<void(bool)>;
+    explicit ProxyService(QObject *parent = nullptr);
+    ~ProxyService() override;
 
-    ProxyService();
-    ~ProxyService();
-
-    bool start(uint16_t listen_port);
+    bool start(const QString &certDir, uint16_t listenPort = 5223,
+               const QString &upstreamHost = "chat.na1.lol.riotgames.com",
+               uint16_t upstreamPort = 5223);
     void stop();
 
-    void setMode(const std::string &mode);
-    std::string mode() const;
+    void setMode(const QString &mode);
+    QString mode() const;
 
-    void onStanza(StanzaCallback cb);
-    void onConnected(ConnectedCallback cb);
+signals:
+    void log(const QString &line);
+    void clientConnected();
+    void clientDisconnected();
+    void bytesPumped(qint64 c2s, qint64 s2c);
 
 private:
     struct Impl;

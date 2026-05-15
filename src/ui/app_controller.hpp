@@ -22,6 +22,7 @@ public:
     ~AppController() override;
 
     void start();
+    static QString certDir();
 
     QString mode() const;
     void setMode(const QString &mode);

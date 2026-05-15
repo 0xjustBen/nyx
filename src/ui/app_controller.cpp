@@ -7,6 +7,8 @@
 #include "core/config.hpp"
 
 #include <QCoreApplication>
+#include <QStandardPaths>
+#include <QDir>
 
 namespace nyx {
 
@@ -26,23 +28,31 @@ AppController::AppController(QObject *parent)
     d->roster = new RosterModel(this);
     d->presence = new PresenceModel(this);
     d->proxy = std::make_unique<ProxyService>();
+    connect(d->proxy.get(), &ProxyService::log,
+            this, [this](const QString &l){ emit logLine(l); });
+    connect(d->proxy.get(), &ProxyService::clientConnected,
+            this, [this]{ d->connected = true;  emit connectedChanged(); });
+    connect(d->proxy.get(), &ProxyService::clientDisconnected,
+            this, [this]{ d->connected = false; emit connectedChanged(); });
 }
 
 AppController::~AppController() = default;
 
+QString AppController::certDir()
+{
+    QString d = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QDir().mkpath(d);
+    return d;
+}
+
 void AppController::start()
 {
     d->config.load();
-    d->proxy->setMode(d->mode.toStdString());
-    d->proxy->onStanza([this](const std::string &kind) {
-        emit logLine(QString::fromStdString(kind));
-    });
-    d->proxy->onConnected([this](bool up) {
-        d->connected = up;
-        emit connectedChanged();
-    });
-    d->proxy->start(5223);
-    d->status = "running";
+    d->proxy->setMode(d->mode);
+    bool ok = d->proxy->start(certDir(), 5223,
+                              QString("chat.%1.lol.riotgames.com").arg(QString::fromStdString(d->config.region)),
+                              5223);
+    d->status = ok ? "listening" : "error";
     emit statusChanged();
 }
 
@@ -55,7 +65,7 @@ void AppController::setMode(const QString &m)
 {
     if (m == d->mode) return;
     d->mode = m;
-    d->proxy->setMode(m.toStdString());
+    d->proxy->setMode(m);
     emit modeChanged();
 }
 
