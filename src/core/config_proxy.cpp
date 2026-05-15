@@ -167,50 +167,33 @@ bool ConfigProxy::start(const QString &localhostDomain, uint16_t chatProxyPort)
                             QJsonObject obj = doc.object();
                             QString realHost;
                             int realPort = 0;
-
-                            // Enumerate every chat-related key so we discover
-                            // whichever fields Riot has actually added in the
-                            // current build. Anything that looks like a host
-                            // gets rewritten to localhost; anything that looks
-                            // like a port gets rewritten to our chat port.
-                            QStringList chatKeysSeen;
-                            for (auto it = obj.begin(); it != obj.end(); ++it) {
-                                const QString k = it.key();
-                                if (!(k.startsWith("chat.") || k.contains("xmpp", Qt::CaseInsensitive)))
-                                    continue;
-                                chatKeysSeen << k;
-                                QJsonValue v = it.value();
-                                if (v.isString()) {
-                                    const QString s = v.toString();
-                                    // Hostname-like: contains a dot, no slash, no spaces
-                                    if (s.contains('.') && !s.contains('/') && !s.contains(' ')) {
-                                        if (realHost.isEmpty()) realHost = s;
-                                        it.value() = d->localhostDomain;
-                                    }
-                                } else if (v.isDouble()) {
-                                    int port = v.toInt();
-                                    if (port > 0 && port < 65536) {
-                                        if (realPort == 0) realPort = port;
-                                        it.value() = (int)d->chatPort;
-                                    }
-                                } else if (v.isObject()) {
-                                    QJsonObject sub = v.toObject();
-                                    bool changed = false;
-                                    for (auto sit = sub.begin(); sit != sub.end(); ++sit) {
-                                        if (sit.value().isString()) {
-                                            const QString ss = sit.value().toString();
-                                            if (ss.contains('.') && !ss.contains('/') && !ss.contains(' ')) {
-                                                if (realHost.isEmpty()) realHost = ss;
-                                                sit.value() = d->localhostDomain;
-                                                changed = true;
-                                            }
-                                        }
-                                    }
-                                    if (changed) it.value() = sub;
-                                }
+                            // Whitelist rewrite — keep tight scope so we don't
+                            // accidentally rewrite telemetry-threshold ints.
+                            if (obj.contains("chat.host")) {
+                                realHost = obj.value("chat.host").toString();
+                                obj["chat.host"] = d->localhostDomain;
                             }
-                            if (!chatKeysSeen.isEmpty()) {
-                                emit log("configproxy chat keys: " + chatKeysSeen.join(", "));
+                            if (obj.contains("chat.port")) {
+                                realPort = obj.value("chat.port").toInt();
+                                obj["chat.port"] = (int)d->chatPort;
+                            }
+                            if (obj.contains("chat.affinities") && obj.value("chat.affinities").isObject()) {
+                                QJsonObject aff = obj.value("chat.affinities").toObject();
+                                for (auto it = aff.begin(); it != aff.end(); ++it)
+                                    it.value() = d->localhostDomain;
+                                obj["chat.affinities"] = aff;
+                            }
+                            if (obj.contains("chat.affinity_domains") && obj.value("chat.affinity_domains").isObject()) {
+                                QJsonObject ad = obj.value("chat.affinity_domains").toObject();
+                                for (auto it = ad.begin(); it != ad.end(); ++it)
+                                    it.value() = d->localhostDomain;
+                                obj["chat.affinity_domains"] = ad;
+                            }
+                            if (obj.contains("chat.affinity_hints") && obj.value("chat.affinity_hints").isObject()) {
+                                QJsonObject ah = obj.value("chat.affinity_hints").toObject();
+                                for (auto it = ah.begin(); it != ah.end(); ++it)
+                                    it.value() = d->localhostDomain;
+                                obj["chat.affinity_hints"] = ah;
                             }
                             body = QJsonDocument(obj).toJson(QJsonDocument::Compact);
 

@@ -44,9 +44,11 @@ std::string RiotPaths::systemYaml()
 std::vector<std::string> RiotPaths::chatHosts()
 {
     return {
-        // Localhost-domain trick: public DNS A-record -> 127.0.0.1.
-        // Riot Client's chat host is rewritten to this via ConfigProxy.
-        // TODO: replace with nyx-owned domain in v2.
+        // sslip.io wildcard: any-prefix.sslip.io resolves to the embedded IP.
+        // 127.0.0.1.sslip.io → 127.0.0.1 via public DNS. No private domain
+        // registration or hosts file needed. Free service.
+        "127.0.0.1.sslip.io",
+        // Legacy Deceive domain — keep so old certs still validate.
         "deceive-localhost.molenzwiebel.xyz",
         "chat.na1.lol.riotgames.com",
         "chat.euw1.lol.riotgames.com",

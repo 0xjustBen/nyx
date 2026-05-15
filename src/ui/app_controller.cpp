@@ -15,14 +15,16 @@
 #include <QFile>
 #include <QSettings>
 #include <QDateTime>
+#include <QSslCertificate>
 
 namespace nyx {
 
-// Use 'localhost' as chat.host. Built-in to Windows resolver (no public
-// DNS needed) and our leaf cert already lists DNS:localhost as a SAN.
-// Riot Client likely rejects bare IPv4 as a hostname value, so we use the
-// DNS literal instead.
-constexpr const char *kLocalhostDomain = "localhost";
+// Public-DNS wildcard: 127.0.0.1.sslip.io resolves to 127.0.0.1 anywhere
+// with normal DNS. Riot Client appears to reject bare 'localhost' /
+// '127.0.0.1' as chat.host (hardcoded loopback rejection in recent
+// builds), so we need a domain that resembles a real chat server. sslip.io
+// is free / no registration / no admin-required hosts file.
+constexpr const char *kLocalhostDomain = "127.0.0.1.sslip.io";
 constexpr uint16_t kChatProxyPort = 5223;
 
 struct AppController::Impl {
@@ -115,14 +117,38 @@ void AppController::start()
     d->proxy->setMode(d->mode);
 
     QString caPath = certDir() + "/ca.pem";
-    if (!QFile::exists(caPath)) {
-        emit logLine("startup: cert artifacts absent — generating + installing CA");
+    QString leafPath = certDir() + "/leaf.pem";
+    auto leafHasSan = [&](const QString &want) {
+        QFile f(leafPath);
+        if (!f.open(QIODevice::ReadOnly)) return false;
+        QByteArray pem = f.readAll();
+        if (pem.isEmpty()) return false;
+        QSslCertificate cert(pem, QSsl::Pem);
+        if (cert.isNull()) return false;
+        const auto names = cert.subjectAlternativeNames();
+        for (auto it = names.begin(); it != names.end(); ++it)
+            if (it.value() == want) return true;
+        return false;
+    };
+
+    bool certNeedsRegen = !QFile::exists(caPath) ||
+                          !leafHasSan(kLocalhostDomain);
+    if (certNeedsRegen) {
+        emit logLine("startup: regenerating cert — missing or SAN out of date");
+        // Wipe old files so Cert::generate() rebuilds them.
+        QDir(certDir()).remove("ca.pem");
+        QDir(certDir()).remove("ca.key");
+        QDir(certDir()).remove("leaf.pem");
+        QDir(certDir()).remove("leaf.key");
+        QDir(certDir()).remove("ca.key.dpapi");
+        QDir(certDir()).remove("leaf.key.dpapi");
+        Cert::uninstallTrust();  // remove stale CA from system store
         bool ok = Cert::installTrust();
-        emit logLine(ok ? "startup: cert installed OK" : "startup: cert install FAILED");
+        emit logLine(ok ? "startup: cert generated + installed OK"
+                        : "startup: cert install FAILED");
     } else {
-        emit logLine("startup: cert artifacts already present at " + caPath);
-        // Still try to install in case user uninstalled CA externally.
-        Cert::installTrust();
+        emit logLine("startup: cert SAN includes " + QString(kLocalhostDomain));
+        Cert::installTrust();  // idempotent re-add in case user yanked it
     }
 
     // No hosts file or DNS dependency — chat.host = 127.0.0.1.
