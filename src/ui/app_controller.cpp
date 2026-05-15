@@ -7,6 +7,7 @@
 #include "core/cert.hpp"
 #include "core/config.hpp"
 #include "core/roster_store.hpp"
+#include "core/hosts_file.hpp"
 
 #include <QCoreApplication>
 #include <QStandardPaths>
@@ -118,6 +119,17 @@ void AppController::start()
         emit logLine("startup: cert artifacts already present at " + caPath);
         // Still try to install in case user uninstalled CA externally.
         Cert::installTrust();
+    }
+
+    // Hosts-file fallback: bulletproofs against DoH / corporate DNS that
+    // doesn't resolve the public deceive-localhost.molenzwiebel.xyz record.
+    if (HostsFile::contains(kLocalhostDomain)) {
+        emit logLine(QString("startup: hosts file already maps %1").arg(kLocalhostDomain));
+    } else {
+        bool ok = HostsFile::ensure(kLocalhostDomain);
+        emit logLine(ok
+            ? QString("startup: hosts file mapped %1 → 127.0.0.1").arg(kLocalhostDomain)
+            : QString("startup: hosts file write FAILED (need admin) for %1").arg(kLocalhostDomain));
     }
 
     // Pre-bind chat proxy on random free port so we can tell ConfigProxy

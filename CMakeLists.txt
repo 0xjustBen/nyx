@@ -33,6 +33,7 @@ set(NYX_CORE_SOURCES
     src/core/config_proxy.cpp
     src/core/launcher.cpp
     src/core/roster_store.cpp
+    src/core/hosts_file.cpp
 )
 
 set(NYX_PLATFORM_SOURCES
