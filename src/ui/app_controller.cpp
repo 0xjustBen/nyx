@@ -18,7 +18,11 @@
 
 namespace nyx {
 
-constexpr const char *kLocalhostDomain = "deceive-localhost.molenzwiebel.xyz";
+// We tell Riot to point chat at literal 127.0.0.1 — our leaf cert already
+// has IP:127.0.0.1 in its SAN list and OpenSSL handles IP-address SANs
+// correctly. Avoids any DNS dependency (the deceive-localhost domain
+// requires public DNS resolution that fails on some networks).
+constexpr const char *kLocalhostDomain = "127.0.0.1";
 constexpr uint16_t kChatProxyPort = 5223;
 
 struct AppController::Impl {
@@ -121,16 +125,7 @@ void AppController::start()
         Cert::installTrust();
     }
 
-    // Hosts-file fallback: bulletproofs against DoH / corporate DNS that
-    // doesn't resolve the public deceive-localhost.molenzwiebel.xyz record.
-    if (HostsFile::contains(kLocalhostDomain)) {
-        emit logLine(QString("startup: hosts file already maps %1").arg(kLocalhostDomain));
-    } else {
-        bool ok = HostsFile::ensure(kLocalhostDomain);
-        emit logLine(ok
-            ? QString("startup: hosts file mapped %1 → 127.0.0.1").arg(kLocalhostDomain)
-            : QString("startup: hosts file write FAILED (need admin) for %1").arg(kLocalhostDomain));
-    }
+    // No hosts file or DNS dependency — chat.host = 127.0.0.1.
 
     // Pre-bind chat proxy on random free port so we can tell ConfigProxy
     // exactly where to point Riot Client.

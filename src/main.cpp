@@ -76,7 +76,15 @@ static bool maybeRelaunchAsAdmin(int argc, char *argv[])
 int main(int argc, char *argv[])
 {
 #if defined(Q_OS_WIN)
-    if (maybeRelaunchAsAdmin(argc, argv)) return 0;
+    // Elevation only needed when taskkill of Riot Client running in another
+    // elevated session is required. Opt-in via --elevate flag; default is
+    // unprivileged for the no-UAC-prompt UX users prefer.
+    for (int i = 1; i < argc; ++i) {
+        if (std::string(argv[i]) == "--elevate") {
+            if (maybeRelaunchAsAdmin(argc, argv)) return 0;
+            break;
+        }
+    }
 #endif
     QGuiApplication app(argc, argv);
     app.setOrganizationName("nyx");
