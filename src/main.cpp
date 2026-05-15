@@ -12,8 +12,72 @@
 
 #include "ui/app_controller.hpp"
 
+#if defined(Q_OS_WIN)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <shellapi.h>
+
+// Returns true if the current process is running as Administrator.
+static bool isElevated()
+{
+    BOOL elevated = FALSE;
+    HANDLE token = nullptr;
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+        TOKEN_ELEVATION te{};
+        DWORD len = 0;
+        if (GetTokenInformation(token, TokenElevation, &te, sizeof(te), &len))
+            elevated = te.TokenIsElevated;
+        CloseHandle(token);
+    }
+    return elevated == TRUE;
+}
+
+// If not elevated AND not already a re-launch attempt, relaunch via UAC.
+// Pass "--nyx-elevated" sentinel so we don't loop if elevation is denied.
+static bool maybeRelaunchAsAdmin(int argc, char *argv[])
+{
+    for (int i = 1; i < argc; ++i) {
+        if (std::string(argv[i]) == "--nyx-elevated") return false;
+        if (std::string(argv[i]) == "--no-elevate")   return false;
+    }
+    if (isElevated()) return false;
+
+    wchar_t exe[MAX_PATH];
+    GetModuleFileNameW(nullptr, exe, MAX_PATH);
+
+    // Build arg string with original args + sentinel.
+    std::wstring args = L"--nyx-elevated";
+    for (int i = 1; i < argc; ++i) {
+        args += L" ";
+        // Quote each arg.
+        args += L"\"";
+        for (char *p = argv[i]; *p; ++p) args += (wchar_t)*p;
+        args += L"\"";
+    }
+
+    SHELLEXECUTEINFOW info{};
+    info.cbSize = sizeof(info);
+    info.fMask  = SEE_MASK_NOCLOSEPROCESS;
+    info.lpVerb = L"runas";
+    info.lpFile = exe;
+    info.lpParameters = args.c_str();
+    info.nShow  = SW_SHOWNORMAL;
+    if (ShellExecuteExW(&info)) {
+        // Elevated copy launched — exit current process.
+        if (info.hProcess) CloseHandle(info.hProcess);
+        return true;
+    }
+    // User declined UAC — continue unelevated. Kill-existing won't work for
+    // processes from other sessions but app still functions.
+    return false;
+}
+#endif
+
 int main(int argc, char *argv[])
 {
+#if defined(Q_OS_WIN)
+    if (maybeRelaunchAsAdmin(argc, argv)) return 0;
+#endif
     QGuiApplication app(argc, argv);
     app.setOrganizationName("nyx");
     app.setOrganizationDomain("nyx.io");
