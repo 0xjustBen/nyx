@@ -2,6 +2,8 @@ import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import Nyx
+//- need clipboard
+
 
 Rectangle {
     color: Theme.bg
@@ -70,6 +72,21 @@ Rectangle {
                     font.letterSpacing: 1
                 }
                 Item { Layout.fillWidth: true }
+                NeonBtn {
+                    text: "Copy log"
+                    onClicked: {
+                        let txt = ""
+                        for (let i = events.count - 1; i >= 0; --i) {
+                            const r = events.get(i)
+                            txt += r.ts + "  [" + r.tag + "]  " +
+                                   r.msg.replace(/<\/?(em|dim)>/g, "") + "\n"
+                        }
+                        clipboardHelper.text = txt
+                        clipboardHelper.selectAll()
+                        clipboardHelper.copy()
+                    }
+                }
+                TextEdit { id: clipboardHelper; visible: false }
                 Repeater {
                     model: ["All","Presence","Friends","Game","System"]
                     delegate: Rectangle {

@@ -31,6 +31,7 @@ struct ProxyService::Impl {
     uint16_t upstreamPort = 5223;
     QSslConfiguration serverCfg;
     QString mode = "online";
+    QString userJid;
     XmppRewriter rewriter;
     std::atomic<qint64> c2sBytes{0};
     std::atomic<qint64> s2cBytes{0};
@@ -139,6 +140,21 @@ bool ProxyService::start(const QString &certDir, uint16_t listenPort,
                     d->s2cBytes += b.size();
                     if (c->client && c->client->state() == QAbstractSocket::ConnectedState)
                         c->client->write(b);
+                    // Capture user's bound JID from any inbound `to='<full-jid>'`
+                    // attribute so we can synthesize valid presence later.
+                    if (d->userJid.isEmpty()) {
+                        int t = b.indexOf("to='");
+                        if (t < 0) t = b.indexOf("to=\"");
+                        if (t >= 0) {
+                            int s = t + 4;
+                            char q = (b[t + 3] == '\'') ? '\'' : '"';
+                            int e = b.indexOf(q, s);
+                            if (e > s) {
+                                d->userJid = QString::fromUtf8(b.mid(s, e - s));
+                                emit log("bound jid: " + d->userJid);
+                            }
+                        }
+                    }
                     // Observe roster + presence for UI without altering forwarded bytes.
                     d->rewriter.observeS2C(b);
                     for (auto &ev : d->rewriter.drainEvents()) {
@@ -227,11 +243,16 @@ QString ProxyService::mode() const { return d->mode; }
 
 void ProxyService::resendPresence()
 {
-    // Build a minimal <presence> stanza tagged with the current mode and
-    // send it through the rewriter so friends see the new state without the
-    // game client re-sending its own presence.
+    if (d->byClient.isEmpty()) {
+        emit log("presence: no active client connection");
+        return;
+    }
     QString show = modeToString(modeFromString(d->mode));
-    QByteArray stanza = "<presence><show>" + show.toUtf8() + "</show></presence>";
+    QByteArray fromAttr = d->userJid.isEmpty() ? QByteArray()
+                         : (" from='" + d->userJid.toUtf8() + "'");
+    QByteArray stanza = "<presence" + fromAttr + ">"
+                        "<show>" + show.toUtf8() + "</show>"
+                        "</presence>";
     QByteArray rewritten = d->rewriter.rewriteSingleStanza(stanza);
 
     int sent = 0;
@@ -242,7 +263,8 @@ void ProxyService::resendPresence()
             ++sent;
         }
     }
-    emit log(QString("presence: pushed mode=%1 to %2 upstream(s)").arg(show).arg(sent));
+    emit log(QString("presence: pushed mode=%1 (jid=%2) to %3 upstream(s)")
+                 .arg(show, d->userJid.isEmpty() ? "?" : d->userJid).arg(sent));
 }
 
 } // namespace nyx
