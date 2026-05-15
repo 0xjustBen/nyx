@@ -24,7 +24,6 @@ jobs:
           host: windows
           target: desktop
           arch: win64_msvc2019_64
-          modules: qtdeclarative qtshadertools qt5compat
           cache: true
           cache-key-prefix: qt-${{ env.QT_VERSION }}-msvc
 
