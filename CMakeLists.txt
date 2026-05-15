@@ -19,7 +19,7 @@ if(NOT WIN32)
 endif()
 
 if(NYX_BUILD_APP)
-    find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network Widgets)
+    find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network Widgets Xml)
     qt_standard_project_setup(REQUIRES 6.5)
     qt_policy(SET QTP0004 NEW)
 endif()
@@ -75,7 +75,7 @@ if(NYX_BUILD_APP)
     target_include_directories(nyx PRIVATE src third_party)
 
     target_link_libraries(nyx PRIVATE
-        Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Network Qt6::Widgets
+        Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Network Qt6::Widgets Qt6::Xml
     )
     if(NOT WIN32)
         target_link_libraries(nyx PRIVATE OpenSSL::SSL OpenSSL::Crypto)
@@ -108,6 +108,18 @@ if(NYX_BUILD_TESTS AND NOT WIN32)
     )
     target_include_directories(nyx_cert_smoke PRIVATE src)
     target_link_libraries(nyx_cert_smoke PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+
+    if(NYX_BUILD_APP)
+        add_executable(nyx_xmpp_smoke
+            tests/xmpp_smoke.cpp
+            src/core/xmpp.cpp
+        )
+        target_include_directories(nyx_xmpp_smoke PRIVATE src)
+        target_link_libraries(nyx_xmpp_smoke PRIVATE Qt6::Core Qt6::Xml)
+        enable_testing()
+        add_test(NAME xmpp_smoke COMMAND nyx_xmpp_smoke)
+    endif()
+
     enable_testing()
     add_test(NAME cert_smoke COMMAND nyx_cert_smoke)
 endif()

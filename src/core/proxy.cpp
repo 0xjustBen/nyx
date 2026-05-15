@@ -1,4 +1,5 @@
 #include "core/proxy.hpp"
+#include "core/xmpp.hpp"
 
 #include <QSslServer>
 #include <QSslSocket>
@@ -30,6 +31,7 @@ struct ProxyService::Impl {
     uint16_t upstreamPort = 5223;
     QSslConfiguration serverCfg;
     QString mode = "online";
+    XmppRewriter rewriter;
     std::atomic<qint64> c2sBytes{0};
     std::atomic<qint64> s2cBytes{0};
 
@@ -124,7 +126,8 @@ bool ProxyService::start(const QString &certDir, uint16_t listenPort,
                 c->upstream->connectToHostEncrypted(d->upstreamHost, d->upstreamPort);
             });
             connect(sock, &QSslSocket::readyRead, this, [this, c] {
-                QByteArray b = c->client->readAll();
+                QByteArray raw = c->client->readAll();
+                QByteArray b = d->rewriter.rewriteC2S(raw);
                 if (c->upstreamReady) {
                     c->upstream->write(b);
                     d->c2sBytes += b.size();
@@ -169,7 +172,7 @@ void ProxyService::stop()
     d->server = nullptr;
 }
 
-void ProxyService::setMode(const QString &m) { d->mode = m; }
+void ProxyService::setMode(const QString &m) { d->mode = m; d->rewriter.setMode(modeFromString(m)); }
 QString ProxyService::mode() const { return d->mode; }
 
 } // namespace nyx
