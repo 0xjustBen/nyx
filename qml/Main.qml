@@ -110,6 +110,27 @@ ApplicationWindow {
                 }
                 Item { Layout.fillWidth: true }
 
+                Repeater {
+                    model: [
+                        { key: "main",     label: "Main" },
+                        { key: "activity", label: "Activity" },
+                        { key: "settings", label: "Settings" },
+                    ]
+                    delegate: Label {
+                        text: modelData.label
+                        color: root.currentScreen === modelData.key ? Theme.cyan : Theme.muted
+                        font.family: Theme.fontDisplay
+                        font.pixelSize: Theme.fontXs
+                        font.letterSpacing: 2
+                        Layout.rightMargin: 8
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.currentScreen = modelData.key
+                        }
+                    }
+                }
+
                 // Connection pill.
                 Rectangle {
                     radius: 99
