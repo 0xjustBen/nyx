@@ -1,0 +1,81 @@
+name: windows
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 30
+
+    env:
+      QT_VERSION: 6.7.3
+      OPENSSL_VERSION: 3.3.2
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_msvc2019_64
+          modules: qtdeclarative qtshadertools qt5compat
+          cache: true
+          cache-key-prefix: qt-${{ env.QT_VERSION }}-msvc
+
+      - name: Install OpenSSL
+        run: |
+          choco install openssl -y --no-progress
+          echo "OPENSSL_ROOT_DIR=C:\Program Files\OpenSSL-Win64" >> $env:GITHUB_ENV
+          echo "C:\Program Files\OpenSSL-Win64\bin" >> $env:GITHUB_PATH
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH="$env:Qt6_DIR" `
+            -DOPENSSL_ROOT_DIR="$env:OPENSSL_ROOT_DIR" `
+            -DNYX_BUILD_APP=ON
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Verify
+        run: |
+          dir build
+          if (!(Test-Path build/nyx.exe)) { exit 1 }
+          dir build/*.dll | Select-Object Name
+
+      - name: Smoke test (headless launch + auto-exit)
+        shell: pwsh
+        run: |
+          $env:NYX_SCREENSHOT = "$PWD\smoke.png"
+          $env:NYX_SCREEN     = "main"
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $proc = Start-Process -FilePath "build\nyx.exe" -PassThru -NoNewWindow
+          $proc.WaitForExit(15000)
+          if (-not $proc.HasExited) { $proc.Kill(); Write-Error "timeout"; exit 1 }
+          dir smoke.png
+
+      - name: Package
+        run: |
+          $stage = "nyx-windows-x64"
+          New-Item -ItemType Directory -Path $stage | Out-Null
+          Copy-Item -Recurse -Path "build\*" -Destination $stage -Exclude "*.lib","*.pdb","*.exp","CMakeFiles","cmake_install.cmake","CMakeCache.txt","*.obj"
+          Compress-Archive -Path "$stage\*" -DestinationPath "nyx-windows-x64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nyx-windows-x64
+          path: nyx-windows-x64.zip
+          if-no-files-found: error

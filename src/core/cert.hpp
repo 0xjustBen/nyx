@@ -16,6 +16,8 @@ public:
     // Generate root CA + leaf cert for chat.<region>.lol.riotgames.com SANs.
     static CertBundle generate();
 
+    // dir is a UTF-8 path. On Windows the bytes are interpreted via
+    // std::filesystem::u8path so non-ASCII works.
     static bool save(const CertBundle &b, const std::string &dir);
     static bool load(CertBundle &out, const std::string &dir);
 

@@ -92,6 +92,34 @@ if(NYX_BUILD_APP)
     elseif(WIN32)
         target_link_libraries(nyx PRIVATE crypt32 ws2_32)
         set_target_properties(nyx PROPERTIES WIN32_EXECUTABLE TRUE)
+
+        # windeployqt: bundle Qt DLLs + QML plugins next to nyx.exe so the
+        # output dir is self-contained. Run after every link.
+        find_program(WINDEPLOYQT windeployqt HINTS ${Qt6_DIR}/../../../bin REQUIRED)
+        add_custom_command(TARGET nyx POST_BUILD
+            COMMAND "${WINDEPLOYQT}"
+                    --qmldir "${CMAKE_SOURCE_DIR}/qml"
+                    --no-translations
+                    --no-system-d3d-compiler
+                    --no-opengl-sw
+                    --release
+                    "$<TARGET_FILE:nyx>"
+            COMMENT "windeployqt: bundling Qt runtime")
+
+        # Bundle OpenSSL DLLs alongside if found. Qt's openssl backend dlopens
+        # libssl-3-x64.dll / libcrypto-3-x64.dll at runtime.
+        if(OPENSSL_FOUND)
+            get_filename_component(OPENSSL_DIR "${OPENSSL_INCLUDE_DIR}" DIRECTORY)
+            foreach(dll libssl-3-x64.dll libcrypto-3-x64.dll)
+                if(EXISTS "${OPENSSL_DIR}/bin/${dll}")
+                    add_custom_command(TARGET nyx POST_BUILD
+                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                                "${OPENSSL_DIR}/bin/${dll}"
+                                "$<TARGET_FILE_DIR:nyx>"
+                        COMMENT "copy ${dll}")
+                endif()
+            endforeach()
+        endif()
     endif()
 
     include(GNUInstallDirs)

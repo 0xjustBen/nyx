@@ -13,11 +13,19 @@ Launcher::Launcher(QObject *parent) : QObject(parent) {}
 QString Launcher::riotClientPath()
 {
 #if defined(_WIN32)
-    QStringList candidates = {
-        "C:/Riot Games/Riot Client/RiotClientServices.exe",
-        "C:/Program Files/Riot Games/Riot Client/RiotClientServices.exe",
-        "C:/Program Files (x86)/Riot Games/Riot Client/RiotClientServices.exe",
-    };
+    // Riot Client install path is registered in HKLM\Software\Riot Games, but
+    // the canonical install lives under ProgramData. Cover the common roots.
+    QStringList candidates;
+    auto add = [&](const QString &p){ if (!p.isEmpty()) candidates << p; };
+    add(qEnvironmentVariable("PROGRAMDATA")    + "/Riot Games/Riot Client/RiotClientServices.exe");
+    add(qEnvironmentVariable("ProgramFiles")   + "/Riot Games/Riot Client/RiotClientServices.exe");
+    add(qEnvironmentVariable("ProgramFiles(x86)") + "/Riot Games/Riot Client/RiotClientServices.exe");
+    add(qEnvironmentVariable("LOCALAPPDATA")   + "/Riot Games/Riot Client/RiotClientServices.exe");
+    candidates
+        << "C:/Riot Games/Riot Client/RiotClientServices.exe"
+        << "C:/ProgramData/Riot Games/Riot Client/RiotClientServices.exe"
+        << "C:/Program Files/Riot Games/Riot Client/RiotClientServices.exe"
+        << "C:/Program Files (x86)/Riot Games/Riot Client/RiotClientServices.exe";
 #elif defined(__APPLE__)
     QStringList candidates = {
         "/Applications/Riot Client.app/Contents/MacOS/RiotClientServices",

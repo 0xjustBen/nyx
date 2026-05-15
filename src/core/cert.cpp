@@ -158,7 +158,11 @@ CertBundle Cert::generate()
 
 bool Cert::save(const CertBundle &b, const std::string &dir)
 {
+#ifdef _WIN32
+    fs::path d = fs::u8path(dir);
+#else
     fs::path d(dir);
+#endif
     std::error_code ec;
     fs::create_directories(d, ec);
     if (!writeFile(d / "ca.pem",       b.caPem))      return false;
@@ -174,7 +178,11 @@ bool Cert::save(const CertBundle &b, const std::string &dir)
 
 bool Cert::load(CertBundle &out, const std::string &dir)
 {
+#ifdef _WIN32
+    fs::path d = fs::u8path(dir);
+#else
     fs::path d(dir);
+#endif
     if (!readFile(d / "ca.pem",   out.caPem))      return false;
     if (!readFile(d / "ca.key",   out.caKeyPem))   return false;
     if (!readFile(d / "leaf.pem", out.leafPem))    return false;
