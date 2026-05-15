@@ -18,11 +18,11 @@
 
 namespace nyx {
 
-// We tell Riot to point chat at literal 127.0.0.1 — our leaf cert already
-// has IP:127.0.0.1 in its SAN list and OpenSSL handles IP-address SANs
-// correctly. Avoids any DNS dependency (the deceive-localhost domain
-// requires public DNS resolution that fails on some networks).
-constexpr const char *kLocalhostDomain = "127.0.0.1";
+// Use 'localhost' as chat.host. Built-in to Windows resolver (no public
+// DNS needed) and our leaf cert already lists DNS:localhost as a SAN.
+// Riot Client likely rejects bare IPv4 as a hostname value, so we use the
+// DNS literal instead.
+constexpr const char *kLocalhostDomain = "localhost";
 constexpr uint16_t kChatProxyPort = 5223;
 
 struct AppController::Impl {

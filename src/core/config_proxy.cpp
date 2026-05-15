@@ -10,6 +10,7 @@
 #include <QJsonValue>
 #include <QPointer>
 #include <QTimer>
+#include <QFile>
 
 namespace nyx {
 
@@ -138,6 +139,8 @@ bool ConfigProxy::start(const QString &localhostDomain, uint16_t chatProxyPort)
                 if (!parseRequest(*buf, req)) return;
                 *inflight = true;
 
+                emit log("configproxy → upstream " + QString::fromLatin1(req.method) + " "
+                         + QString::fromLatin1(req.path));
                 QUrl url(QString::fromLatin1(kConfigUrl) + QString::fromLatin1(req.path));
                 QNetworkRequest qreq(url);
                 auto ua = header(req, "User-Agent");
@@ -155,6 +158,9 @@ bool ConfigProxy::start(const QString &localhostDomain, uint16_t chatProxyPort)
                     int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
                     if (status == 0) status = 502;
 
+                    // Log path + size for every proxied request.
+                    emit log(QString("configproxy ← upstream %1 bytes (status %2)")
+                                 .arg(body.size()).arg(status));
                     if (status >= 200 && status < 300) {
                         QJsonDocument doc = QJsonDocument::fromJson(body);
                         if (doc.isObject()) {
@@ -177,6 +183,16 @@ bool ConfigProxy::start(const QString &localhostDomain, uint16_t chatProxyPort)
                                 obj["chat.affinities"] = aff;
                             }
                             body = QJsonDocument(obj).toJson(QJsonDocument::Compact);
+
+                            // Optional debug dump.
+                            if (qEnvironmentVariableIsSet("NYX_DUMP_CFG")) {
+                                QFile f(qEnvironmentVariable("NYX_DUMP_CFG"));
+                                if (f.open(QIODevice::WriteOnly | QIODevice::Append)) {
+                                    f.write("---\n");
+                                    f.write(body);
+                                    f.write("\n");
+                                }
+                            }
 
                             if (!d->chatResolvedEmitted && !realHost.isEmpty() && realPort > 0) {
                                 d->chatResolvedEmitted = true;
