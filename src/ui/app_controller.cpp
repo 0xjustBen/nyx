@@ -2,8 +2,9 @@
 #include "ui/roster_model.hpp"
 #include "ui/presence_model.hpp"
 #include "core/proxy.hpp"
+#include "core/config_proxy.hpp"
+#include "core/launcher.hpp"
 #include "core/cert.hpp"
-#include "core/patcher.hpp"
 #include "core/config.hpp"
 
 #include <QCoreApplication>
@@ -12,6 +13,9 @@
 
 namespace nyx {
 
+constexpr const char *kLocalhostDomain = "deceive-localhost.molenzwiebel.xyz";
+constexpr uint16_t kChatProxyPort = 5223;
+
 struct AppController::Impl {
     QString mode = "online";
     QString status = "idle";
@@ -19,6 +23,8 @@ struct AppController::Impl {
     RosterModel *roster = nullptr;
     PresenceModel *presence = nullptr;
     std::unique_ptr<ProxyService> proxy;
+    std::unique_ptr<ConfigProxy> configProxy;
+    std::unique_ptr<Launcher> launcher;
     Config config;
 };
 
@@ -28,12 +34,27 @@ AppController::AppController(QObject *parent)
     d->roster = new RosterModel(this);
     d->presence = new PresenceModel(this);
     d->proxy = std::make_unique<ProxyService>();
-    connect(d->proxy.get(), &ProxyService::log,
-            this, [this](const QString &l){ emit logLine(l); });
+    d->configProxy = std::make_unique<ConfigProxy>();
+    d->launcher = std::make_unique<Launcher>();
+
+    auto forwardLog = [this](const QString &l) { emit logLine(l); };
+    connect(d->proxy.get(),       &ProxyService::log,  this, forwardLog);
+    connect(d->configProxy.get(), &ConfigProxy::log,   this, forwardLog);
+    connect(d->launcher.get(),    &Launcher::log,      this, forwardLog);
+
     connect(d->proxy.get(), &ProxyService::clientConnected,
             this, [this]{ d->connected = true;  emit connectedChanged(); });
     connect(d->proxy.get(), &ProxyService::clientDisconnected,
             this, [this]{ d->connected = false; emit connectedChanged(); });
+
+    // When ConfigProxy learns the real chat host from clientconfig response,
+    // start the TLS chat proxy targeting it.
+    connect(d->configProxy.get(), &ConfigProxy::chatServerResolved,
+            this, [this](const QString &host, uint16_t port) {
+        if (!d->proxy->start(certDir(), kChatProxyPort, host, port)) {
+            emit logLine("proxy: start failed");
+        }
+    });
 }
 
 AppController::~AppController() = default;
@@ -49,16 +70,17 @@ void AppController::start()
 {
     d->config.load();
     d->proxy->setMode(d->mode);
-    bool ok = d->proxy->start(certDir(), 5223,
-                              QString("chat.%1.lol.riotgames.com").arg(QString::fromStdString(d->config.region)),
-                              5223);
-    d->status = ok ? "listening" : "error";
+    if (!d->configProxy->start(kLocalhostDomain, kChatProxyPort)) {
+        d->status = "configproxy error";
+    } else {
+        d->status = QString("configproxy on :%1").arg(d->configProxy->port());
+    }
     emit statusChanged();
 }
 
-QString AppController::mode() const { return d->mode; }
-QString AppController::status() const { return d->status; }
-bool AppController::connected() const { return d->connected; }
+QString AppController::mode() const     { return d->mode; }
+QString AppController::status() const   { return d->status; }
+bool    AppController::connected() const { return d->connected; }
 RosterModel *AppController::roster() const { return d->roster; }
 
 void AppController::setMode(const QString &m)
@@ -71,8 +93,16 @@ void AppController::setMode(const QString &m)
 
 void AppController::installCert()   { Cert::installTrust(); }
 void AppController::uninstallCert() { Cert::uninstallTrust(); }
-void AppController::patchClient()   { Patcher::patch(); }
-void AppController::restoreClient() { Patcher::restore(); }
-void AppController::quit()          { QCoreApplication::quit(); }
+
+void AppController::launchRiot()
+{
+    if (!d->configProxy->port()) {
+        emit logLine("launch: configproxy not running");
+        return;
+    }
+    d->launcher->launch(d->configProxy->port());
+}
+
+void AppController::quit() { QCoreApplication::quit(); }
 
 } // namespace nyx

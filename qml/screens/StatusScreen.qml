@@ -49,13 +49,13 @@ Rectangle {
                 onClicked: App.installCert()
             }
             Button {
-                text: "Patch client"
-                onClicked: App.patchClient()
+                text: "Launch Riot"
+                onClicked: App.launchRiot()
             }
             Button {
-                text: "Restore"
+                text: "Uninstall certificate"
                 flat: true
-                onClicked: { App.restoreClient(); App.uninstallCert() }
+                onClicked: App.uninstallCert()
             }
         }
 

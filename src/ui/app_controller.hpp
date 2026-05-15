@@ -8,6 +8,8 @@
 namespace nyx {
 
 class ProxyService;
+class ConfigProxy;
+class Launcher;
 class PresenceModel;
 
 class AppController : public QObject {
@@ -32,8 +34,7 @@ public:
 
     Q_INVOKABLE void installCert();
     Q_INVOKABLE void uninstallCert();
-    Q_INVOKABLE void patchClient();
-    Q_INVOKABLE void restoreClient();
+    Q_INVOKABLE void launchRiot();
     Q_INVOKABLE void quit();
 
 signals:

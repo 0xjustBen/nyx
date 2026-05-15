@@ -27,10 +27,11 @@ endif()
 set(NYX_CORE_SOURCES
     src/core/proxy.cpp
     src/core/xmpp.cpp
-    src/core/patcher.cpp
     src/core/cert.cpp
     src/core/riot_paths.cpp
     src/core/config.cpp
+    src/core/config_proxy.cpp
+    src/core/launcher.cpp
 )
 
 set(NYX_PLATFORM_SOURCES
