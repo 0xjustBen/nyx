@@ -13,6 +13,7 @@
 #include <QDir>
 #include <QFile>
 #include <QSettings>
+#include <QDateTime>
 
 namespace nyx {
 
@@ -30,11 +31,19 @@ struct AppController::Impl {
     std::unique_ptr<Launcher> launcher;
     std::unique_ptr<RosterStore> store;
     Config config;
+    QStringList logBuf;  // captures every logLine before UI subscribes
 };
 
 AppController::AppController(QObject *parent)
     : QObject(parent), d(std::make_unique<Impl>())
 {
+    // Capture every emitted logLine so QML can replay them on screen mount.
+    connect(this, &AppController::logLine, this,
+            [this](const QString &l) {
+                d->logBuf.append(QDateTime::currentDateTime().toString("HH:mm:ss.zzz") + " " + l);
+                if (d->logBuf.size() > 500) d->logBuf.removeFirst();
+            });
+
     d->roster = new RosterModel(this);
     d->presence = new PresenceModel(this);
     d->proxy = std::make_unique<ProxyService>();
@@ -100,22 +109,36 @@ void AppController::start()
     d->config.load();
     d->proxy->setMode(d->mode);
 
-    // Pre-bind chat proxy on a random free port so we can tell ConfigProxy
-    // exactly where to point Riot Client. Upstream host is unset until
-    // chatServerResolved fires; first incoming connection won't have a
-    // valid upstream until then — Riot client retries.
     QString caPath = certDir() + "/ca.pem";
     if (!QFile::exists(caPath)) {
-        emit logLine("startup: generating cert artifacts");
+        emit logLine("startup: cert artifacts absent — generating + installing CA");
+        bool ok = Cert::installTrust();
+        emit logLine(ok ? "startup: cert installed OK" : "startup: cert install FAILED");
+    } else {
+        emit logLine("startup: cert artifacts already present at " + caPath);
+        // Still try to install in case user uninstalled CA externally.
         Cert::installTrust();
     }
+
+    // Pre-bind chat proxy on random free port so we can tell ConfigProxy
+    // exactly where to point Riot Client.
     if (!d->proxy->start(certDir(), 0, "", 5223)) {
-        emit logLine("proxy: pre-bind failed");
+        emit logLine("startup: chat proxy pre-bind FAILED (cert files missing or port in use)");
     }
-    uint16_t chatPort = d->proxy->boundPort() ? d->proxy->boundPort() : kChatProxyPort;
+    uint16_t chatPort = d->proxy->boundPort();
+    if (chatPort == 0) {
+        emit logLine("startup: chat proxy bound port = 0 — fallback to 5223 (likely broken)");
+        chatPort = kChatProxyPort;
+    } else {
+        emit logLine(QString("startup: chat proxy bound on 127.0.0.1:%1").arg(chatPort));
+    }
+
     if (!d->configProxy->start(kLocalhostDomain, chatPort)) {
+        emit logLine("startup: configproxy start FAILED");
         d->status = "configproxy error";
     } else {
+        emit logLine(QString("startup: configproxy http://127.0.0.1:%1 — chat port :%2 — localhost-domain %3")
+                         .arg(d->configProxy->port()).arg(chatPort).arg(kLocalhostDomain));
         d->status = QString("configproxy :%1 · chat :%2")
                         .arg(d->configProxy->port()).arg(chatPort);
     }
@@ -288,6 +311,11 @@ bool AppController::autostart() const
 void AppController::notifyMode()
 {
     emit logLine("mode notify: " + d->mode);
+}
+
+QStringList AppController::initialLog() const
+{
+    return d->logBuf;
 }
 
 void AppController::quit() { QCoreApplication::quit(); }

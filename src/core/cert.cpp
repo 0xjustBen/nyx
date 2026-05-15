@@ -173,20 +173,18 @@ bool Cert::save(const CertBundle &b, const std::string &dir)
 #endif
     std::error_code ec;
     fs::create_directories(d, ec);
-    if (!writeFile(d / "ca.pem",   b.caPem))   return false;
-    if (!writeFile(d / "leaf.pem", b.leafPem)) return false;
+    if (!writeFile(d / "ca.pem",   b.caPem))      return false;
+    if (!writeFile(d / "leaf.pem", b.leafPem))    return false;
+    if (!writeFile(d / "ca.key",   b.caKeyPem))   return false;
+    if (!writeFile(d / "leaf.key", b.leafKeyPem)) return false;
 #ifdef _WIN32
+    // DPAPI seal is best-effort — write sealed copies if possible but don't
+    // fail cert install if the API is unavailable (e.g. in a sandboxed
+    // service account).
     auto sealedCa   = dpapiSeal(b.caKeyPem);
     auto sealedLeaf = dpapiSeal(b.leafKeyPem);
-    if (sealedCa.empty() || sealedLeaf.empty()) return false;
-    if (!writeFile(d / "ca.key.dpapi",   sealedCa))   return false;
-    if (!writeFile(d / "leaf.key.dpapi", sealedLeaf)) return false;
-    // Plain key still needed for QSslKey to parse — write it as 0600.
-    if (!writeFile(d / "ca.key",   b.caKeyPem))   return false;
-    if (!writeFile(d / "leaf.key", b.leafKeyPem)) return false;
-#else
-    if (!writeFile(d / "ca.key",   b.caKeyPem))   return false;
-    if (!writeFile(d / "leaf.key", b.leafKeyPem)) return false;
+    if (!sealedCa.empty())   writeFile(d / "ca.key.dpapi",   sealedCa);
+    if (!sealedLeaf.empty()) writeFile(d / "leaf.key.dpapi", sealedLeaf);
 #endif
 #ifndef _WIN32
     fs::permissions(d / "ca.key",   fs::perms::owner_read | fs::perms::owner_write, ec);

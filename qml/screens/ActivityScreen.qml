@@ -13,7 +13,19 @@ Rectangle {
     ListModel { id: events }
 
     Component.onCompleted: {
-        // Seed with a handful of synthetic entries — overwritten by real logLine signal.
+        // Replay any logs emitted before this screen mounted (chat proxy
+        // bind, cert install, etc).
+        const buf = App.initialLog()
+        for (let i = 0; i < buf.length; ++i) {
+            const line = buf[i]
+            const sp = line.indexOf(' ')
+            const ts = line.substring(0, sp)
+            const msg = line.substring(sp + 1)
+            events.insert(0, { ts: ts, tag: "system", msg: msg })
+        }
+        if (events.count > 0) return  // skip synthetic seed if real logs present
+
+        // Otherwise show synthetic demo entries.
         const seed = [
             ["14:08:42.118", "presence", "Broadcast state <em>Online</em> → 127 friends · XMPP roster push <dim>[seq 0x4af2]</dim>"],
             ["14:08:42.097", "system",   "Mode switch <dim>Invisible → Online</dim> via ⌘1 hotkey"],
