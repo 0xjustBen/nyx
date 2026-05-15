@@ -27,11 +27,12 @@ jobs:
           cache: true
           cache-key-prefix: qt-${{ env.QT_VERSION }}-msvc
 
-      - name: Install OpenSSL
+      - name: Install OpenSSL via vcpkg
         run: |
-          choco install openssl -y --no-progress
-          echo "OPENSSL_ROOT_DIR=C:\Program Files\OpenSSL-Win64" >> $env:GITHUB_ENV
-          echo "C:\Program Files\OpenSSL-Win64\bin" >> $env:GITHUB_PATH
+          & "$env:VCPKG_INSTALLATION_ROOT\vcpkg.exe" install openssl:x64-windows
+          $root = "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows"
+          echo "OPENSSL_ROOT_DIR=$root" >> $env:GITHUB_ENV
+          echo "$root\bin" >> $env:GITHUB_PATH
 
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1

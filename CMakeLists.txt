@@ -112,14 +112,21 @@ if(NYX_BUILD_APP)
         # libssl-3-x64.dll / libcrypto-3-x64.dll at runtime.
         if(OPENSSL_FOUND)
             get_filename_component(OPENSSL_DIR "${OPENSSL_INCLUDE_DIR}" DIRECTORY)
-            foreach(dll libssl-3-x64.dll libcrypto-3-x64.dll)
-                if(EXISTS "${OPENSSL_DIR}/bin/${dll}")
-                    add_custom_command(TARGET nyx POST_BUILD
-                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                                "${OPENSSL_DIR}/bin/${dll}"
-                                "$<TARGET_FILE_DIR:nyx>"
-                        COMMENT "copy ${dll}")
-                endif()
+            # Shining Light layout = <root>/bin, vcpkg layout = <root>/bin too
+            # but DLL names differ (libssl-3-x64.dll vs libssl-3-x64.dll on
+            # vcpkg; same names actually since 3.x). Cover both names.
+            foreach(dll
+                libssl-3-x64.dll  libcrypto-3-x64.dll
+                libssl-3.dll      libcrypto-3.dll)
+                foreach(search_dir "${OPENSSL_DIR}/bin" "${OPENSSL_ROOT_DIR}/bin")
+                    if(EXISTS "${search_dir}/${dll}")
+                        add_custom_command(TARGET nyx POST_BUILD
+                            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                                    "${search_dir}/${dll}"
+                                    "$<TARGET_FILE_DIR:nyx>"
+                            COMMENT "copy ${dll}")
+                    endif()
+                endforeach()
             endforeach()
         endif()
     endif()
