@@ -73,13 +73,14 @@ int main(int argc, char *argv[])
         CHECK(!out.contains("<bacon>"),              "mobile: other-game stripped");
     }
 
-    // Offline (invisible): outbound presence dropped entirely so server
-    // never broadcasts a fresh state. Friends see last-known (typically
-    // offline) and the client itself stays online.
+    // Offline (invisible): rewrites <show> to "offline", strips lol.
+    // We don't drop the stanza or send type='unavailable' because that
+    // would tear down the chat stream and disconnect the local client.
     {
         QByteArray out = run(Mode::Offline, kPresence);
-        CHECK(out.trimmed().isEmpty() || !out.contains("<presence"),
-              "offline: outbound presence dropped");
+        CHECK(out.contains("<show>offline</show>"), "offline: show rewritten");
+        CHECK(!out.contains("<league_of_legends>"), "offline: lol removed");
+        CHECK(!out.contains("type='unavailable'"),  "offline: no unavailable type");
     }
 
     // Dnd: show=dnd, lol removed.

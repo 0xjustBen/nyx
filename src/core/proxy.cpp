@@ -252,24 +252,14 @@ void ProxyService::resendPresence()
     QByteArray fromAttr = d->userJid.isEmpty() ? QByteArray()
                          : (" from='" + d->userJid.toUtf8() + "'");
 
-    QByteArray stanza;
-    if (m == Mode::Offline) {
-        // Invisible: send <presence type='unavailable'> to mark us offline
-        // server-side. Server broadcasts unavailable to roster. Friends see
-        // offline. Local Riot Client never sees this (we send straight to
-        // upstream); its chat UI stays online.
-        stanza = "<presence" + fromAttr + " type='unavailable'/>";
-    } else {
-        // Available + chosen show. For 'online' we use 'chat'. We send
-        // BARE-available implicitly: a <presence> with <show> is treated
-        // by XMPP servers as "available with show=X". Sending a bare
-        // <presence/> first isn't needed because <presence><show>X</show>
-        // means "available, X show".
-        QString show = modeToString(m);
-        stanza = "<presence" + fromAttr + ">"
-                 "<show>" + show.toUtf8() + "</show>"
-                 "</presence>";
-    }
+    // Synthesize <presence from='jid'><show>X</show></presence> for every
+    // mode (including invisible — show="offline" — to avoid sending
+    // type='unavailable' which would close the chat stream and disconnect
+    // the local Riot Client).
+    QString show = modeToString(m);
+    QByteArray stanza = "<presence" + fromAttr + ">"
+                        "<show>" + show.toUtf8() + "</show>"
+                        "</presence>";
 
     // Bypass rewriter for our synth stanzas — we already built them with
     // the intended semantics. Run through anyway only to keep counters in
