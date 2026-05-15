@@ -21,7 +21,9 @@ endif()
 if(NYX_BUILD_APP)
     find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network Widgets Xml)
     qt_standard_project_setup(REQUIRES 6.5)
-    qt_policy(SET QTP0004 NEW)
+    if(Qt6_VERSION VERSION_GREATER_EQUAL "6.8")
+        qt_policy(SET QTP0004 NEW)
+    endif()
 endif()
 
 set(NYX_CORE_SOURCES
