@@ -221,7 +221,8 @@ Rectangle {
                             Layout.fillWidth: true
                         }
                         NeonBtn { text: "Install cert";   onClicked: App.installCert() }
-                        NeonBtn { text: "Uninstall cert"; onClicked: App.uninstallCert() }
+                        NeonBtn { text: "League";         onClicked: App.launchProduct("league") }
+                        NeonBtn { text: "Valorant";       onClicked: App.launchProduct("valorant") }
                         NeonBtn { text: "▶ Riot Client";  primary: true; onClicked: App.launchRiot() }
                     }
                 }

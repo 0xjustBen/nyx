@@ -19,6 +19,10 @@ public:
     bool start(const QString &localhostDomain, uint16_t chatProxyPort);
     void stop();
 
+    // Update the chat port reported to Riot Client (called once we know what
+    // port QSslServer actually bound).
+    void setChatPort(uint16_t port);
+
     uint16_t port() const;
 
 signals:

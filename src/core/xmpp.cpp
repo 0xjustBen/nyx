@@ -35,9 +35,96 @@ XmppRewriter::XmppRewriter() = default;
 
 void XmppRewriter::setMode(Mode m) { m_mode = m; }
 
+void XmppRewriter::reset()
+{
+    m_c2sBuf.clear();
+    m_pending.clear();
+}
+
+// Find end of the *first* top-level XMPP stanza starting at `start` in `data`.
+// Returns index *after* the closing tag, or -1 if incomplete. Skips XML
+// declarations and stream openers/closers (returns their boundary).
+static int findStanzaEnd(const QByteArray &data, int start)
+{
+    while (start < data.size() && (data[start] == ' ' || data[start] == '\n' ||
+                                    data[start] == '\r' || data[start] == '\t'))
+        ++start;
+    if (start >= data.size()) return -1;
+    if (data[start] != '<') return -1;
+
+    // <? ... ?> or <! ... > or <foo .../> or <foo>...</foo>
+    if (data.mid(start, 2) == "<?") {
+        int e = data.indexOf("?>", start);
+        return e < 0 ? -1 : e + 2;
+    }
+    int nameEnd = start + 1;
+    while (nameEnd < data.size() &&
+           data[nameEnd] != ' ' && data[nameEnd] != '>' && data[nameEnd] != '/' &&
+           data[nameEnd] != '\t' && data[nameEnd] != '\n' && data[nameEnd] != '\r')
+        ++nameEnd;
+    QByteArray name = data.mid(start + 1, nameEnd - start - 1);
+
+    // Track depth from this stanza only.
+    int i = start;
+    int depth = 0;
+    while (i < data.size()) {
+        if (data[i] != '<') { ++i; continue; }
+        // Self-closed <foo .../>
+        int gt = data.indexOf('>', i);
+        if (gt < 0) return -1;
+        bool selfClosed = (gt > 0 && data[gt - 1] == '/');
+        bool isClose = (i + 1 < data.size() && data[i + 1] == '/');
+
+        if (selfClosed && depth == 0) return gt + 1;
+        if (isClose) {
+            --depth;
+            if (depth == 0) return gt + 1;
+        } else if (!selfClosed) {
+            ++depth;
+        } else {
+            // self-closed nested element, no depth change
+        }
+        i = gt + 1;
+    }
+    return -1; // incomplete
+}
+
 QByteArray XmppRewriter::rewriteC2S(const QByteArray &chunk)
 {
+    // Fast path: passthrough if Online.
     if (m_mode == Mode::Online) return chunk;
+
+    m_c2sBuf.append(chunk);
+
+    QByteArray out;
+    int i = 0;
+    while (i < m_c2sBuf.size()) {
+        // Skip whitespace.
+        while (i < m_c2sBuf.size() && (m_c2sBuf[i] == ' ' || m_c2sBuf[i] == '\n' ||
+                                       m_c2sBuf[i] == '\r' || m_c2sBuf[i] == '\t')) {
+            out.append(m_c2sBuf[i]);
+            ++i;
+        }
+        if (i >= m_c2sBuf.size()) break;
+        int end = findStanzaEnd(m_c2sBuf, i);
+        if (end < 0) break; // incomplete; keep in buffer
+        QByteArray stanza = m_c2sBuf.mid(i, end - i);
+        // Only mutate <presence> stanzas via legacy single-stanza path.
+        if (stanza.contains("<presence")) {
+            QByteArray rewritten = rewriteSingleStanza(stanza);
+            out.append(rewritten);
+        } else {
+            out.append(stanza);
+        }
+        i = end;
+    }
+    m_c2sBuf.remove(0, i);
+    return out;
+}
+
+// Original single-stanza rewriter — extracted from rewriteC2S.
+QByteArray XmppRewriter::rewriteSingleStanza(const QByteArray &chunk)
+{
     if (!chunk.contains("<presence")) return chunk;
 
     // Wrap in synthetic root so QDomDocument can parse a stanza-fragment chunk

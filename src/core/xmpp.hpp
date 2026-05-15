@@ -35,12 +35,15 @@ public:
 
     void setConnectToMuc(bool v) { m_muc = v; }
 
-    // Apply transform for client->server traffic. Returns possibly-modified bytes.
+    // Apply transform for client->server traffic. Stream-aware: buffers
+    // partial stanzas across TCP chunks and only emits bytes for complete
+    // top-level stanzas (so QDomDocument parse never sees a split tag).
     QByteArray rewriteC2S(const QByteArray &chunk);
 
-    // Server-to-client chunks are forwarded verbatim, but we parse them in
-    // place to populate the friend roster + presence cache. The parsed data
-    // is exposed via observeS2C and returned to the caller unchanged.
+    // Reset stream buffers (call on new connection).
+    void reset();
+
+    // Server-to-client chunks: parse to populate roster + presence cache.
     struct Friend {
         QString jid;
         QString name;
@@ -59,10 +62,14 @@ public:
     };
     std::vector<Event> drainEvents();
 
+    // Internal — exposed for the streaming rewriter to call on each complete stanza.
+    QByteArray rewriteSingleStanza(const QByteArray &chunk);
+
 private:
     Mode m_mode = Mode::Online;
     bool m_muc = false;
     std::vector<Event> m_pending;
+    QByteArray m_c2sBuf; // stream buffer
 };
 
 } // namespace nyx

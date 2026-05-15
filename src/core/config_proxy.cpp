@@ -110,6 +110,7 @@ bool ConfigProxy::start(const QString &localhostDomain, uint16_t chatProxyPort)
     if (d->server) return false;
     d->localhostDomain = localhostDomain;
     d->chatPort = chatProxyPort;
+    d->chatResolvedEmitted = false;
     d->http = new QNetworkAccessManager(this);
     d->server = new QTcpServer(this);
 
@@ -212,5 +213,6 @@ void ConfigProxy::stop()
 }
 
 uint16_t ConfigProxy::port() const { return d->listenPort; }
+void ConfigProxy::setChatPort(uint16_t p) { d->chatPort = p; }
 
 } // namespace nyx

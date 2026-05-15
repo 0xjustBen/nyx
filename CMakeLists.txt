@@ -17,7 +17,7 @@ option(NYX_BUILD_TESTS "Build smoke tests" OFF)
 find_package(OpenSSL REQUIRED)
 
 if(NYX_BUILD_APP)
-    find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network Widgets Xml)
+    find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network Widgets Xml Sql)
     qt_standard_project_setup(REQUIRES 6.5)
     if(Qt6_VERSION VERSION_GREATER_EQUAL "6.8")
         qt_policy(SET QTP0004 NEW)
@@ -32,6 +32,7 @@ set(NYX_CORE_SOURCES
     src/core/config.cpp
     src/core/config_proxy.cpp
     src/core/launcher.cpp
+    src/core/roster_store.cpp
 )
 
 set(NYX_PLATFORM_SOURCES
@@ -76,7 +77,7 @@ if(NYX_BUILD_APP)
     target_include_directories(nyx PRIVATE src third_party)
 
     target_link_libraries(nyx PRIVATE
-        Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Network Qt6::Widgets Qt6::Xml
+        Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Network Qt6::Widgets Qt6::Xml Qt6::Sql
         OpenSSL::SSL OpenSSL::Crypto
     )
 

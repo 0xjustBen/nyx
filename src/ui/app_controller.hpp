@@ -35,6 +35,7 @@ public:
     Q_INVOKABLE bool installCert();
     Q_INVOKABLE bool uninstallCert();
     Q_INVOKABLE void launchRiot();
+    Q_INVOKABLE void launchProduct(const QString &product);  // league_of_legends|valorant|bacon|lion
     Q_INVOKABLE void killRiotClients();
     Q_INVOKABLE void quit();
 

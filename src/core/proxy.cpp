@@ -112,11 +112,17 @@ bool ProxyService::start(const QString &certDir, uint16_t listenPort,
 
             connect(sock, &QSslSocket::encrypted, this, [this, c] {
                 if (!c->client) return;
+                d->rewriter.reset(); // fresh stream buffer per connection
                 emit log("client: TLS up — dialing upstream " + d->upstreamHost);
                 c->upstream = new QSslSocket(this);
                 d->byUpstream.insert(c->upstream, c);
                 c->upstream->setProtocol(QSsl::TlsV1_2OrLater);
-                c->upstream->setPeerVerifyMode(QSslSocket::VerifyNone); // TODO: pin Riot's CA
+                // Pin upstream to system trust store so an attacker on the
+                // local network can't MITM the real Riot chat server. We
+                // still set VerifyPeer; sslErrors handler logs but does NOT
+                // ignore unknown failures.
+                c->upstream->setPeerVerifyMode(QSslSocket::VerifyPeer);
+                c->upstream->setPeerVerifyName(d->upstreamHost);
                 connect(c->upstream, &QSslSocket::encrypted, this, [this, c] {
                     if (!c->upstream) return;
                     c->upstreamReady = true;
@@ -152,7 +158,8 @@ bool ProxyService::start(const QString &certDir, uint16_t listenPort,
                         this, [this, c](const QList<QSslError> &errs) {
                     if (!c->upstream) return;
                     for (const auto &e : errs) emit log("upstream ssl: " + e.errorString());
-                    c->upstream->ignoreSslErrors(); // dev only
+                    // Do NOT auto-ignore — VerifyPeer means real errors abort the
+                    // upstream connection, which is exactly what we want.
                 });
                 c->upstream->connectToHostEncrypted(d->upstreamHost, d->upstreamPort);
             });
@@ -181,15 +188,30 @@ bool ProxyService::start(const QString &certDir, uint16_t listenPort,
         }
     });
 
-    if (!d->server->listen(QHostAddress::LocalHost, listenPort)) {
+    // Try IPv4 localhost first; fall back to dual-stack Any (Riot may resolve
+    // the localhost-domain to ::1 on some Windows configs).
+    if (!d->server->listen(QHostAddress::LocalHost, listenPort) &&
+        !d->server->listen(QHostAddress::Any, listenPort)) {
         emit log(QString("listen failed on %1: %2").arg(listenPort).arg(d->server->errorString()));
         d->server->deleteLater();
         d->server = nullptr;
         return false;
     }
     emit log(QString("listening on 127.0.0.1:%1, upstream %2:%3")
-                 .arg(listenPort).arg(d->upstreamHost).arg(d->upstreamPort));
+                 .arg(d->server->serverPort()).arg(d->upstreamHost).arg(d->upstreamPort));
     return true;
+}
+
+uint16_t ProxyService::boundPort() const
+{
+    return d->server ? (uint16_t)d->server->serverPort() : 0;
+}
+
+void ProxyService::setUpstream(const QString &host, uint16_t port)
+{
+    d->upstreamHost = host;
+    d->upstreamPort = port;
+    emit log(QString("upstream set: %1:%2").arg(host).arg(port));
 }
 
 void ProxyService::stop()
@@ -202,5 +224,25 @@ void ProxyService::stop()
 
 void ProxyService::setMode(const QString &m) { d->mode = m; d->rewriter.setMode(modeFromString(m)); }
 QString ProxyService::mode() const { return d->mode; }
+
+void ProxyService::resendPresence()
+{
+    // Build a minimal <presence> stanza tagged with the current mode and
+    // send it through the rewriter so friends see the new state without the
+    // game client re-sending its own presence.
+    QString show = modeToString(modeFromString(d->mode));
+    QByteArray stanza = "<presence><show>" + show.toUtf8() + "</show></presence>";
+    QByteArray rewritten = d->rewriter.rewriteSingleStanza(stanza);
+
+    int sent = 0;
+    for (auto it = d->byClient.begin(); it != d->byClient.end(); ++it) {
+        auto *c = it.value();
+        if (c->upstream && c->upstreamReady) {
+            c->upstream->write(rewritten);
+            ++sent;
+        }
+    }
+    emit log(QString("presence: pushed mode=%1 to %2 upstream(s)").arg(show).arg(sent));
+}
 
 } // namespace nyx
