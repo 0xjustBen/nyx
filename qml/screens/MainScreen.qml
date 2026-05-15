@@ -220,9 +220,9 @@ Rectangle {
                             font.letterSpacing: 3
                             Layout.fillWidth: true
                         }
-                        NeonBtn { text: "League";   onClicked: App.launchRiot() }
-                        NeonBtn { text: "Valorant"; onClicked: App.launchRiot() }
-                        NeonBtn { text: "▶ Riot Client"; primary: true; onClicked: App.launchRiot() }
+                        NeonBtn { text: "Install cert";   onClicked: App.installCert() }
+                        NeonBtn { text: "Uninstall cert"; onClicked: App.uninstallCert() }
+                        NeonBtn { text: "▶ Riot Client";  primary: true; onClicked: App.launchRiot() }
                     }
                 }
             }
