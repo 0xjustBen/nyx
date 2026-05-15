@@ -248,31 +248,45 @@ void ProxyService::resendPresence()
         return;
     }
     Mode m = modeFromString(d->mode);
-    if (m == Mode::Offline) {
-        // Invisible: don't broadcast any presence. Server keeps last-known
-        // state (or no state) so friends see offline; local client still
-        // believes it's online.
-        emit log("presence: invisible — no broadcast (chat stays usable)");
-        return;
-    }
-    QString show = modeToString(m);
+
     QByteArray fromAttr = d->userJid.isEmpty() ? QByteArray()
                          : (" from='" + d->userJid.toUtf8() + "'");
-    QByteArray stanza = "<presence" + fromAttr + ">"
-                        "<show>" + show.toUtf8() + "</show>"
-                        "</presence>";
-    QByteArray rewritten = d->rewriter.rewriteSingleStanza(stanza);
 
+    QByteArray stanza;
+    if (m == Mode::Offline) {
+        // Invisible: send <presence type='unavailable'> to mark us offline
+        // server-side. Server broadcasts unavailable to roster. Friends see
+        // offline. Local Riot Client never sees this (we send straight to
+        // upstream); its chat UI stays online.
+        stanza = "<presence" + fromAttr + " type='unavailable'/>";
+    } else {
+        // Available + chosen show. For 'online' we use 'chat'. We send
+        // BARE-available implicitly: a <presence> with <show> is treated
+        // by XMPP servers as "available with show=X". Sending a bare
+        // <presence/> first isn't needed because <presence><show>X</show>
+        // means "available, X show".
+        QString show = modeToString(m);
+        stanza = "<presence" + fromAttr + ">"
+                 "<show>" + show.toUtf8() + "</show>"
+                 "</presence>";
+    }
+
+    // Bypass rewriter for our synth stanzas — we already built them with
+    // the intended semantics. Run through anyway only to keep counters in
+    // sync; the rewriter will see show=X (allowed) or unavailable (passthrough
+    // — Offline path strips presence broadcasts, but this one has type=
+    // attribute which our streaming code doesn't filter specifically).
     int sent = 0;
     for (auto it = d->byClient.begin(); it != d->byClient.end(); ++it) {
         auto *c = it.value();
         if (c->upstream && c->upstreamReady) {
-            c->upstream->write(rewritten);
+            c->upstream->write(stanza);
             ++sent;
         }
     }
-    emit log(QString("presence: pushed mode=%1 (jid=%2) to %3 upstream(s)")
-                 .arg(show, d->userJid.isEmpty() ? "?" : d->userJid).arg(sent));
+    emit log(QString("presence: pushed %1 (jid=%2) to %3 upstream(s)")
+                 .arg(m == Mode::Offline ? "unavailable" : modeToString(m),
+                      d->userJid.isEmpty() ? "?" : d->userJid).arg(sent));
 }
 
 } // namespace nyx
