@@ -21,6 +21,7 @@ endif()
 if(NYX_BUILD_APP)
     find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network Widgets)
     qt_standard_project_setup(REQUIRES 6.5)
+    qt_policy(SET QTP0004 NEW)
 endif()
 
 set(NYX_CORE_SOURCES
@@ -51,6 +52,8 @@ if(NYX_BUILD_APP)
         ${NYX_PLATFORM_SOURCES}
         ${NYX_UI_SOURCES}
     )
+
+    set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
     qt_add_qml_module(nyx
         URI Nyx

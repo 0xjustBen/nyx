@@ -1,5 +1,6 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QQmlContext>
 #include <QQuickStyle>
 #include <QIcon>
 
@@ -11,7 +12,7 @@ int main(int argc, char *argv[])
     app.setOrganizationName("nyx");
     app.setOrganizationDomain("nyx.io");
     app.setApplicationName("Nyx");
-    app.setWindowIcon(QIcon(":/Nyx/resources/icons/tray.svg"));
+    app.setWindowIcon(QIcon(":/qt/qml/Nyx/resources/icons/tray.svg"));
 
     QQuickStyle::setStyle("Basic");
 

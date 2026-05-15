@@ -3,10 +3,11 @@
 #include <QString>
 #include <memory>
 
+#include "ui/roster_model.hpp"
+
 namespace nyx {
 
 class ProxyService;
-class RosterModel;
 class PresenceModel;
 
 class AppController : public QObject {
