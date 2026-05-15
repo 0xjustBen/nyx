@@ -9,12 +9,12 @@ ItemDelegate {
     property string friendPresence
     property string friendGame
 
-    height: 56
-    width: parent ? parent.width : 320
+    height: 64
 
     background: Rectangle {
-        color: row.hovered ? Theme.surface2 : "transparent"
+        color: row.hovered ? Qt.rgba(1,1,1,0.03) : "transparent"
         radius: Theme.radiusSm
+        Behavior on color { ColorAnimation { duration: Theme.durFast } }
     }
 
     contentItem: RowLayout {
@@ -23,16 +23,26 @@ ItemDelegate {
         anchors.leftMargin: Theme.padding
         anchors.rightMargin: Theme.padding
 
-        Rectangle {
-            Layout.preferredWidth: 36
-            Layout.preferredHeight: 36
-            radius: 18
-            color: Theme.accentDim
-            Label {
-                anchors.centerIn: parent
-                text: row.friendName.length ? row.friendName.charAt(0).toUpperCase() : "?"
-                color: Theme.text
-                font.bold: true
+        // Avatar with presence ring.
+        Item {
+            Layout.preferredWidth: 40
+            Layout.preferredHeight: 40
+            Rectangle {
+                anchors.fill: parent
+                radius: width / 2
+                gradient: Gradient {
+                    orientation: Gradient.Vertical
+                    GradientStop { position: 0.0; color: Theme.accent }
+                    GradientStop { position: 1.0; color: Theme.accentDim }
+                }
+                Label {
+                    anchors.centerIn: parent
+                    text: row.friendName.length ? row.friendName.charAt(0).toUpperCase() : "?"
+                    color: Theme.text
+                    font.family: Theme.fontDisplay
+                    font.bold: true
+                    font.pixelSize: Theme.fontMd
+                }
             }
             Rectangle {
                 width: 12; height: 12; radius: 6
@@ -40,10 +50,7 @@ ItemDelegate {
                 anchors.bottom: parent.bottom
                 border.color: Theme.surface
                 border.width: 2
-                color: row.friendPresence === "chat"     ? Theme.online
-                     : row.friendPresence === "away"     ? Theme.away
-                     : row.friendPresence === "dnd"      ? Theme.danger
-                     : Theme.offline
+                color: Theme.presenceColor(row.friendPresence)
             }
         }
 
@@ -53,16 +60,34 @@ ItemDelegate {
             Label {
                 text: row.friendName
                 color: Theme.text
-                font.pixelSize: 14
+                font.family: Theme.fontDisplay
+                font.pixelSize: Theme.fontMd
+                font.weight: Font.Medium
                 elide: Text.ElideRight
                 Layout.fillWidth: true
             }
-            Label {
-                text: row.friendGame.length ? row.friendGame : row.friendPresence
-                color: Theme.textDim
-                font.pixelSize: 12
-                elide: Text.ElideRight
-                Layout.fillWidth: true
+            RowLayout {
+                spacing: 6
+                Label {
+                    text: row.friendPresence || "offline"
+                    color: Theme.presenceColor(row.friendPresence)
+                    font.family: Theme.fontMono
+                    font.pixelSize: Theme.fontXs
+                }
+                Label {
+                    visible: row.friendGame.length > 0
+                    text: "·"
+                    color: Theme.textMute
+                    font.pixelSize: Theme.fontXs
+                }
+                Label {
+                    visible: row.friendGame.length > 0
+                    text: row.friendGame
+                    color: Theme.textDim
+                    font.pixelSize: Theme.fontXs
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                }
             }
         }
     }
