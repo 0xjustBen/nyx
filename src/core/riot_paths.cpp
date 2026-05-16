@@ -44,9 +44,11 @@ std::string RiotPaths::systemYaml()
 std::vector<std::string> RiotPaths::chatHosts()
 {
     return {
-        // sslip.io wildcard: any-prefix.sslip.io resolves to the embedded IP.
-        // 127.0.0.1.sslip.io → 127.0.0.1 via public DNS. No private domain
-        // registration or hosts file needed. Free service.
+        // RFC 6761 reserved — every compliant resolver returns loopback for
+        // *.localhost without consulting DNS.
+        "nyx.localhost",
+        "*.localhost",
+        // Public DNS fallback (sslip.io wildcard, A → 127.0.0.1).
         "127.0.0.1.sslip.io",
         // Legacy Deceive domain — keep so old certs still validate.
         "deceive-localhost.molenzwiebel.xyz",

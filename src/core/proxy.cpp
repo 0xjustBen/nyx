@@ -204,10 +204,10 @@ bool ProxyService::start(const QString &certDir, uint16_t listenPort,
         }
     });
 
-    // Try IPv4 localhost first; fall back to dual-stack Any (Riot may resolve
-    // the localhost-domain to ::1 on some Windows configs).
-    if (!d->server->listen(QHostAddress::LocalHost, listenPort) &&
-        !d->server->listen(QHostAddress::Any, listenPort)) {
+    // *.localhost resolves to ::1 on Windows (IPv6 loopback) but to 127.0.0.1
+    // on some other resolvers. Listen on Any first so we accept both stacks.
+    if (!d->server->listen(QHostAddress::Any, listenPort) &&
+        !d->server->listen(QHostAddress::LocalHost, listenPort)) {
         emit log(QString("listen failed on %1: %2").arg(listenPort).arg(d->server->errorString()));
         d->server->deleteLater();
         d->server = nullptr;

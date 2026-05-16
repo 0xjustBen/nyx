@@ -19,12 +19,10 @@
 
 namespace nyx {
 
-// Public-DNS wildcard: 127.0.0.1.sslip.io resolves to 127.0.0.1 anywhere
-// with normal DNS. Riot Client appears to reject bare 'localhost' /
-// '127.0.0.1' as chat.host (hardcoded loopback rejection in recent
-// builds), so we need a domain that resembles a real chat server. sslip.io
-// is free / no registration / no admin-required hosts file.
-constexpr const char *kLocalhostDomain = "127.0.0.1.sslip.io";
+// RFC 6761 reserves *.localhost: any resolver MUST return loopback for
+// these names without consulting DNS. Bypasses public DNS + firewalls +
+// hosts file entirely. Most OSes resolve to ::1 (IPv6), some to 127.0.0.1.
+constexpr const char *kLocalhostDomain = "nyx.localhost";
 constexpr uint16_t kChatProxyPort = 5223;
 
 struct AppController::Impl {
