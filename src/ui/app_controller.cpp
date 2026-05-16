@@ -19,10 +19,11 @@
 
 namespace nyx {
 
-// Literal IPv4 loopback. Riot Client codebase rejects `.localhost` TLD via
-// its RSO/redirect-URI validators, so the only host string guaranteed to
-// pass is 127.0.0.1. Our leaf cert already lists IP:127.0.0.1 in SAN.
-constexpr const char *kLocalhostDomain = "127.0.0.1";
+// Riot Client codebase appears to reject `.localhost` TLD AND literal IPs.
+// Use Deceive's public domain — A record points to 127.0.0.1 via normal
+// DNS. Requires a non-filtering resolver (Portmaster blocks this by default
+// as 'DNS rebinding protection'; user must allowlist or disable it).
+constexpr const char *kLocalhostDomain = "deceive-localhost.molenzwiebel.xyz";
 constexpr uint16_t kChatProxyPort = 5223;
 
 struct AppController::Impl {
