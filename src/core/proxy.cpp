@@ -255,31 +255,33 @@ void ProxyService::resendPresence()
     QByteArray fromAttr = d->userJid.isEmpty() ? QByteArray()
                          : (" from='" + d->userJid.toUtf8() + "'");
 
-    // Synthesize <presence from='jid'><show>X</show></presence> for every
-    // mode (including invisible — show="offline" — to avoid sending
-    // type='unavailable' which would close the chat stream and disconnect
-    // the local Riot Client).
+    // Three-stanza protocol to force friends' clients to refresh after a
+    // mode flip (esp. leaving invisible where friends had cached us offline):
+    //   1. bare <presence/>          — server-side state reset to available
+    //   2. <presence><show>X</show>  — the actual mode broadcast
+    //   3. roster-probe IQ           — server re-pushes our roster, which
+    //      triggers re-broadcast of our presence to subscribed friends
     QString show = modeToString(m);
-    QByteArray stanza = "<presence" + fromAttr + ">"
-                        "<show>" + show.toUtf8() + "</show>"
-                        "</presence>";
+    QByteArray bare      = "<presence" + fromAttr + "/>";
+    QByteArray withShow  = "<presence" + fromAttr + ">"
+                           "<show>" + show.toUtf8() + "</show>"
+                           "</presence>";
+    QByteArray probe     = "<iq type='get' id='nyx-roster'"
+                           + fromAttr +
+                           "><query xmlns='jabber:iq:riotgames:roster'/></iq>";
 
-    // Bypass rewriter for our synth stanzas — we already built them with
-    // the intended semantics. Run through anyway only to keep counters in
-    // sync; the rewriter will see show=X (allowed) or unavailable (passthrough
-    // — Offline path strips presence broadcasts, but this one has type=
-    // attribute which our streaming code doesn't filter specifically).
     int sent = 0;
     for (auto it = d->byClient.begin(); it != d->byClient.end(); ++it) {
         auto *c = it.value();
         if (c->upstream && c->upstreamReady) {
-            c->upstream->write(stanza);
+            c->upstream->write(bare);
+            c->upstream->write(withShow);
+            c->upstream->write(probe);
             ++sent;
         }
     }
-    emit log(QString("presence: pushed %1 (jid=%2) to %3 upstream(s)")
-                 .arg(m == Mode::Offline ? "unavailable" : modeToString(m),
-                      d->userJid.isEmpty() ? "?" : d->userJid).arg(sent));
+    emit log(QString("presence: bare+%1+probe (jid=%2) → %3 upstream(s)")
+                 .arg(show, d->userJid.isEmpty() ? "?" : d->userJid).arg(sent));
 }
 
 } // namespace nyx
