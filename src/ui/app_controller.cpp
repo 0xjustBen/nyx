@@ -19,10 +19,10 @@
 
 namespace nyx {
 
-// RFC 6761 reserves *.localhost: any resolver MUST return loopback for
-// these names without consulting DNS. Bypasses public DNS + firewalls +
-// hosts file entirely. Most OSes resolve to ::1 (IPv6), some to 127.0.0.1.
-constexpr const char *kLocalhostDomain = "nyx.localhost";
+// Literal IPv4 loopback. Riot Client codebase rejects `.localhost` TLD via
+// its RSO/redirect-URI validators, so the only host string guaranteed to
+// pass is 127.0.0.1. Our leaf cert already lists IP:127.0.0.1 in SAN.
+constexpr const char *kLocalhostDomain = "127.0.0.1";
 constexpr uint16_t kChatProxyPort = 5223;
 
 struct AppController::Impl {

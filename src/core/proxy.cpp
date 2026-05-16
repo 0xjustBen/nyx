@@ -204,12 +204,10 @@ bool ProxyService::start(const QString &certDir, uint16_t listenPort,
         }
     });
 
-    // *.localhost resolves to ::1 on Windows (IPv6 loopback) so we must bind
-    // an IPv6 listener too. AnyIPv6 + IPV6_V6ONLY=0 is dual-stack on most
-    // platforms; if that fails fall back to IPv4 Any.
-    if (!d->server->listen(QHostAddress::AnyIPv6, listenPort) &&
-        !d->server->listen(QHostAddress::Any, listenPort) &&
-        !d->server->listen(QHostAddress::LocalHost, listenPort)) {
+    // Chat host is literal 127.0.0.1 — bind IPv4 loopback. Fall back to Any
+    // if loopback specifically is blocked.
+    if (!d->server->listen(QHostAddress::LocalHost, listenPort) &&
+        !d->server->listen(QHostAddress::Any, listenPort)) {
         emit log(QString("listen failed on %1: %2").arg(listenPort).arg(d->server->errorString()));
         d->server->deleteLater();
         d->server = nullptr;
