@@ -1,0 +1,27 @@
+name: prune-failed-runs
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"   # every 6 hours
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["windows", "macos", "linux"]
+    types: [completed]
+
+permissions:
+  actions: write
+
+jobs:
+  prune:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Delete every failed run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          ids=$(gh run list --repo ${{ github.repository }} --status failure --limit 100 --json databaseId -q '.[].databaseId')
+          for id in $ids; do
+            echo "deleting $id"
+            gh run delete --repo ${{ github.repository }} "$id" || true
+          done
