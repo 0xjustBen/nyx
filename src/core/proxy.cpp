@@ -215,8 +215,11 @@ bool ProxyService::start(const QString &certDir, uint16_t listenPort,
         d->server = nullptr;
         return false;
     }
-    emit log(QString("listening on 127.0.0.1:%1, upstream %2:%3")
-                 .arg(d->server->serverPort()).arg(d->upstreamHost).arg(d->upstreamPort));
+    emit log(QString("listening on %1:%2 (dual-stack: %3), upstream %4:%5")
+                 .arg(d->server->serverAddress().toString())
+                 .arg(d->server->serverPort())
+                 .arg(d->server->serverAddress() == QHostAddress::AnyIPv6 ? "yes" : "no")
+                 .arg(d->upstreamHost).arg(d->upstreamPort));
     return true;
 }
 
