@@ -15,13 +15,23 @@ jobs:
   prune:
     runs-on: ubuntu-24.04
     steps:
-      - name: Delete every failed run
+      - name: Keep only the latest run per workflow; delete the rest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
-          ids=$(gh run list --repo ${{ github.repository }} --status failure --limit 100 --json databaseId -q '.[].databaseId')
-          for id in $ids; do
-            echo "deleting $id"
-            gh run delete --repo ${{ github.repository }} "$id" || true
+          keep=$(gh run list --repo ${{ github.repository }} --limit 200 \
+                  --json databaseId,name,createdAt,status \
+                | jq -r '[ .[] | select(.status == "completed") ]
+                         | group_by(.name)
+                         | map(sort_by(.createdAt) | last | .databaseId) | .[]')
+          all=$(gh run list --repo ${{ github.repository }} --limit 200 \
+                  --status completed --json databaseId -q '.[].databaseId')
+          for id in $all; do
+            if ! echo "$keep" | grep -qx "$id"; then
+              echo "deleting $id"
+              gh run delete --repo ${{ github.repository }} "$id" || true
+            else
+              echo "keeping $id"
+            fi
           done
