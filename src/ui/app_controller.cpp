@@ -351,6 +351,22 @@ QStringList AppController::initialLog() const
     return d->logBuf;
 }
 
+bool AppController::patchHostsFile()
+{
+    bool ok = HostsFile::ensure(kLocalhostDomain);
+    emit logLine(ok
+        ? QString("hosts: mapped %1 → 127.0.0.1 (DNS bypass active)").arg(kLocalhostDomain)
+        : QString("hosts: write FAILED (run Nyx with --elevate or as admin)"));
+    return ok;
+}
+
+bool AppController::unpatchHostsFile()
+{
+    bool ok = HostsFile::remove();
+    emit logLine(ok ? "hosts: nyx block removed" : "hosts: remove failed");
+    return ok;
+}
+
 void AppController::quit() { QCoreApplication::quit(); }
 
 } // namespace nyx

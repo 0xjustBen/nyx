@@ -45,6 +45,8 @@ public:
     Q_INVOKABLE bool autostart() const;
     Q_INVOKABLE void notifyMode();
     Q_INVOKABLE QStringList initialLog() const;
+    Q_INVOKABLE bool patchHostsFile();
+    Q_INVOKABLE bool unpatchHostsFile();
     Q_INVOKABLE void quit();
 
 signals:
